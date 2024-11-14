@@ -1,0 +1,24 @@
+resolver: lts-18.28
+
+flags: {}
+
+extra-deps:
+  - git: http://github.com/DaisukeBekki/JSeM.git
+    commit: c2cd39168e267007b4690dbf625329bac57a8185
+  - git: git@github.com:DaisukeBekki/hasktorch-tools.git
+    commit: 936928cdee27e179a5e3775d146046b107b0eba1
+  - git: http://github.com/DaisukeBekki/nlp-tools
+    commit: e4bd3783f4e872b8df29538d9219e41f40378363
+  - git: git@github.com:miyagawananako/lightblue.git
+    commit: d77d36f602bb52f6a3776b7b921edecbae2fdc3d
+  - git: git@github.com:hinarid/waniTest.git
+    commit: 1fbc5e13f29c9b4b823c42cae15e853dc0b79b3b
+
+build:
+  haddock: false
+  haddock-arguments:
+    haddock-args:
+    - --odir=haddock
+  open-haddocks: false
+  haddock-internal: false
+  haddock-hyperlink-source: true
