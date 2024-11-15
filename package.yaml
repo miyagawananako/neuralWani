@@ -42,16 +42,6 @@ library:
   source-dirs: src
 
 executables:
-  # neuralWani-exe:
-  #   main:                Main.hs
-  #   source-dirs:         app
-  #   ghc-options:
-  #   - -threaded
-  #   - -rtsopts
-  #   - -with-rtsopts=-N
-  #   dependencies:
-  #   - neuralWani
-
   train-exe:
     main:                Main.hs
     source-dirs:         app/train
