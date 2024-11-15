@@ -39,6 +39,7 @@ library
     , lightblue >=0.3
     , list-t
     , store
+    , text
     , waniTEST
   default-language: Haskell2010
 
@@ -58,5 +59,6 @@ executable neuralWani-exe
     , list-t
     , neuralWani
     , store
+    , text
     , waniTEST
   default-language: Haskell2010
