@@ -1,27 +1,11 @@
-import qualified Problems.SimpleProblems as SP (yes)
-import qualified Problems.DifficultProblems as DP (yes)
-import qualified Problems.NLPProblems as NLPP (yes)
 import qualified DTS.QueryTypes as QT
 import qualified DTS.DTTdeBruijn as U
-import qualified Interface.Tree as I
 import qualified Data.ByteString as B --bytestring
 import qualified Data.Text.Lazy as T  --text
-import Data.Store (encode, decode)
-import ListT (ListT, toList)
-import Control.Monad (forM)
-
-type ProofSearchResult = ListT IO (I.Tree QT.DTTrule (U.Judgment))
-type TestType = (Bool, ProofSearchResult) -- ^ (predicted, result)
+import Data.Store (decode)
 
 saveFilePath :: FilePath
 saveFilePath = "data/proofSearchResult"
-
-getProofSearchResult :: [TestType] -> IO [(U.Judgment, QT.DTTrule)]
-getProofSearchResult ts = do
-  results <- forM ts $ \(_, result) -> do
-    resultList <- toList result
-    return resultList
-  return (map (\tree -> (I.node tree, I.ruleName tree)) (concat results))
 
 loadActionsFromBinary :: FilePath -> IO [(U.Judgment, QT.DTTrule)]
 loadActionsFromBinary filepath = do
@@ -75,9 +59,6 @@ embedSignature signature = concatMap (\(name, preterm) -> [hash name] ++ embedPr
 
 main :: IO()
 main = do
-  searchResults <- getProofSearchResult (SP.yes ++ DP.yes ++ NLPP.yes)
-  B.writeFile saveFilePath (encode searchResults)
-
   trainingData <- loadActionsFromBinary saveFilePath
 
   let judgmentData = map (\(judgment, _) -> (embedSignature $ U.signtr judgment) ++ [-2] ++ (embedPreterms $ U.contxt judgment) ++ [-3] ++ (embedPreterm $ U.trm judgment) ++ [-4] ++ (embedPreterm $ U.typ judgment)) trainingData

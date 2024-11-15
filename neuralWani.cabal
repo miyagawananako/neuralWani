@@ -43,14 +43,34 @@ library
     , waniTEST
   default-language: Haskell2010
 
-executable neuralWani-exe
+executable preprocess-exe
   main-is: Main.hs
   other-modules:
       Paths_neuralWani
   autogen-modules:
       Paths_neuralWani
   hs-source-dirs:
-      app
+      app/preprocess
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , lightblue >=0.3
+    , list-t
+    , neuralWani
+    , store
+    , text
+    , waniTEST
+  default-language: Haskell2010
+
+executable train-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_neuralWani
+  autogen-modules:
+      Paths_neuralWani
+  hs-source-dirs:
+      app/train
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
