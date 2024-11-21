@@ -17,7 +17,7 @@ loadActionsFromBinary filepath = do
 hash :: T.Text -> Int
 hash = T.foldl' (\acc c -> acc * 31 + fromEnum c) 0
 
-data IntermediateConstructor = EOSig | EOCon | EOTerm | EOTyp | FST | SND | LPAREN | RPAREN | OTHER | Var'0 | Var'1 | Var'2 | Con' | Type' | Kind' | Pi' | Lam' | App' | Not' | Sigma' | Pair' | Proj' | Disj' | Iota' | Unpack' | Bot' | Unit' | Top' | Entity' | Nat' | Zero' | Succ' | Natrec' | Eq' | Refl' | Idpeel'
+data IntermediateConstructor = EOSig | EOCon | EOTerm | EOTyp | FST | SND | LPAREN | RPAREN | OTHER | Var'0 | Var'1 | Var'2 | Var'3 | Var'4 | Var'5 | Var'6 | Con' | Type' | Kind' | Pi' | Lam' | App' | Not' | Sigma' | Pair' | Proj' | Disj' | Iota' | Unpack' | Bot' | Unit' | Top' | Entity' | Nat' | Zero' | Succ' | Natrec' | Eq' | Refl' | Idpeel'
   deriving (Enum, Show)
 
 splitPreterm :: U.Preterm -> [IntermediateConstructor]
@@ -27,6 +27,10 @@ splitPreterm preterm = case preterm of
       0 -> [LPAREN] ++ [Var'0] ++ [RPAREN]
       1 -> [LPAREN] ++ [Var'1] ++ [RPAREN]
       2 -> [LPAREN] ++ [Var'2] ++ [RPAREN]
+      3 -> [LPAREN] ++ [Var'3] ++ [RPAREN]
+      4 -> [LPAREN] ++ [Var'4] ++ [RPAREN]
+      5 -> [LPAREN] ++ [Var'5] ++ [RPAREN]
+      6 -> [LPAREN] ++ [Var'6] ++ [RPAREN]
       _ -> [LPAREN] ++ [OTHER] ++ [RPAREN]
   U.Con c  -> [LPAREN] ++ [Con'] ++ [RPAREN]
   U.Type   -> [LPAREN] ++ [Type'] ++ [RPAREN]
@@ -66,8 +70,14 @@ embedPreterm preterm = map fromEnum $ splitPreterm preterm
 embedPreterms :: [U.Preterm] -> [Int]
 embedPreterms preterms = concatMap (\preterm -> embedPreterm preterm) preterms
 
+-- splitPreterms:: [U.Preterm] -> [IntermediateConstructor]
+-- splitPreterms preterms = concatMap (\preterm -> splitPreterm preterm) preterms
+
 embedSignature :: U.Signature -> [Int]
 embedSignature signature = concatMap (\(name, preterm) -> [fromEnum LPAREN] ++ [hash name] ++ embedPreterm preterm ++ [fromEnum RPAREN]) signature
+
+-- splitSignature :: U.Signature -> [IntermediateConstructor]
+-- splitSignature signature = concatMap (\(name, preterm) -> [LPAREN] ++ splitPreterm preterm ++ [RPAREN]) signature
 
 main :: IO()
 main = do
@@ -75,3 +85,5 @@ main = do
 
   let judgmentData = map (\(judgment, _) -> (embedSignature $ U.signtr judgment) ++ [fromEnum EOSig] ++ (embedPreterms $ U.contxt judgment) ++ [fromEnum EOCon] ++ (embedPreterm $ U.trm judgment) ++ [fromEnum EOTerm] ++ (embedPreterm $ U.typ judgment) ++ [fromEnum EOTyp]) trainingData
   print judgmentData
+  -- let constructorData = map (\(judgment, _) -> (splitSignature $ U.signtr judgment) ++ [EOSig] ++ (splitPreterms $ U.contxt judgment) ++ [EOCon] ++ (splitPreterm $ U.trm judgment) ++ [EOTerm] ++ (splitPreterm $ U.typ judgment) ++ [EOTyp]) trainingData
+  -- print constructorData
