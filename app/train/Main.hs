@@ -17,6 +17,41 @@ loadActionsFromBinary filepath = do
     Left peek_exception -> error $ "Could not parse dic file " ++ filepath ++ ": " ++ (show peek_exception)
     Right actions -> return actions
 
+getWordsFromPreterm :: U.Preterm -> [T.Text]
+getWordsFromPreterm preterm = case preterm of
+  U.Con c  -> [c]
+  U.Pi a b -> getWordsFromPreterm a ++ getWordsFromPreterm b
+  U.Lam m  -> getWordsFromPreterm m
+  U.App m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
+  U.Not m  -> getWordsFromPreterm m
+  U.Sigma a b  -> getWordsFromPreterm a ++ getWordsFromPreterm b
+  U.Pair m n   -> getWordsFromPreterm m ++ getWordsFromPreterm n
+  U.Proj _ m   -> getWordsFromPreterm m
+  U.Disj a b   -> getWordsFromPreterm a ++ getWordsFromPreterm b
+  U.Iota _ m   -> getWordsFromPreterm m
+  U.Unpack p h m n -> getWordsFromPreterm p ++ getWordsFromPreterm h ++ getWordsFromPreterm m ++ getWordsFromPreterm n
+  U.Succ n     -> getWordsFromPreterm n
+  U.Natrec n e f -> getWordsFromPreterm n ++ getWordsFromPreterm e ++ getWordsFromPreterm f
+  U.Eq a m n   -> getWordsFromPreterm a ++ getWordsFromPreterm m ++ getWordsFromPreterm n
+  U.Refl a m   -> getWordsFromPreterm a ++ getWordsFromPreterm m
+  U.Idpeel m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
+  _ -> []
+
+getWordsFromPreterms :: [U.Preterm] -> [T.Text]
+getWordsFromPreterms preterms = concatMap (\preterm -> getWordsFromPreterm preterm) preterms
+
+getWordsFromSignature :: U.Signature -> [T.Text]
+getWordsFromSignature signature = concatMap (\(name, preterm) -> [name] ++ getWordsFromPreterm preterm) signature
+
+getWordsFromJudgment :: U.Judgment -> [T.Text]
+getWordsFromJudgment judgment = (getWordsFromSignature $ U.signtr judgment) ++ (getWordsFromPreterms $ U.contxt judgment) ++ (getWordsFromPreterm $ U.trm judgment) ++ (getWordsFromPreterm $ U.typ judgment)
+
+getFrequentWords :: [T.Text] -> [T.Text]
+getFrequentWords frequentWords = take 31 $ map fst $ sortOn (Down . snd) $ Map.toList wordFreqMap
+  where
+    wordFreqMap :: Map.Map T.Text Int
+    wordFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords
+
 data IntermediateConstructor = EOSig | EOCon | EOTerm | EOTyp | FST | SND | LPAREN | RPAREN | COMMA
                               | Word1 | Word2 | Word3 | Word4 | Word5 | Word6 | Word7 | Word8 | Word9 | Word10 | Word11 | Word12 | Word13 | Word14 | Word15 | Word16 | Word17 | Word18 | Word19 | Word20 | Word21 | Word22 | Word23 | Word24 | Word25 | Word26 | Word27 | Word28 | Word29 | Word30 | Word31 | UNKNOWN
                               | Var'0 | Var'1 | Var'2 | Var'3 | Var'4 | Var'5 | Var'6 | Var'unknown
@@ -98,41 +133,6 @@ splitPreterm preterm frequentWords = case preterm of
   U.Eq a m n   -> [LPAREN] ++ [Eq'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords ++ [RPAREN]
   U.Refl a m   -> [LPAREN] ++ [Refl'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords ++ [RPAREN]
   U.Idpeel m n -> [LPAREN] ++ [Idpeel'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords ++ [RPAREN]
-
-getWordsFromPreterm :: U.Preterm -> [T.Text]
-getWordsFromPreterm preterm = case preterm of
-  U.Con c  -> [c]
-  U.Pi a b -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Lam m  -> getWordsFromPreterm m
-  U.App m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Not m  -> getWordsFromPreterm m
-  U.Sigma a b  -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Pair m n   -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Proj _ m   -> getWordsFromPreterm m
-  U.Disj a b   -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Iota _ m   -> getWordsFromPreterm m
-  U.Unpack p h m n -> getWordsFromPreterm p ++ getWordsFromPreterm h ++ getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Succ n     -> getWordsFromPreterm n
-  U.Natrec n e f -> getWordsFromPreterm n ++ getWordsFromPreterm e ++ getWordsFromPreterm f
-  U.Eq a m n   -> getWordsFromPreterm a ++ getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Refl a m   -> getWordsFromPreterm a ++ getWordsFromPreterm m
-  U.Idpeel m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  _ -> []
-
-getWordsFromPreterms :: [U.Preterm] -> [T.Text]
-getWordsFromPreterms preterms = concatMap (\preterm -> getWordsFromPreterm preterm) preterms
-
-getWordsFromSignature :: U.Signature -> [T.Text]
-getWordsFromSignature signature = concatMap (\(name, preterm) -> [name] ++ getWordsFromPreterm preterm) signature
-
-getWordsFromJudgment :: U.Judgment -> [T.Text]
-getWordsFromJudgment judgment = (getWordsFromSignature $ U.signtr judgment) ++ (getWordsFromPreterms $ U.contxt judgment) ++ (getWordsFromPreterm $ U.trm judgment) ++ (getWordsFromPreterm $ U.typ judgment)
-
-getFrequentWords :: [T.Text] -> [T.Text]
-getFrequentWords frequentWords = take 31 $ map fst $ sortOn (Down . snd) $ Map.toList wordFreqMap
-  where
-    wordFreqMap :: Map.Map T.Text Int
-    wordFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords
 
 splitPreterms:: [U.Preterm] -> [T.Text]-> [IntermediateConstructor]
 splitPreterms preterms frequentWords = concatMap (\preterm -> splitPreterm preterm frequentWords) preterms
