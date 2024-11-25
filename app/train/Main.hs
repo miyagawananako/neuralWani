@@ -44,7 +44,11 @@ getWordsFromSignature :: U.Signature -> [T.Text]
 getWordsFromSignature signature = concatMap (\(name, preterm) -> [name] ++ getWordsFromPreterm preterm) signature
 
 getWordsFromJudgment :: U.Judgment -> [T.Text]
-getWordsFromJudgment judgment = (getWordsFromSignature $ U.signtr judgment) ++ (getWordsFromPreterms $ U.contxt judgment) ++ (getWordsFromPreterm $ U.trm judgment) ++ (getWordsFromPreterm $ U.typ judgment)
+getWordsFromJudgment judgment =
+  getWordsFromSignature (U.signtr judgment) ++
+  getWordsFromPreterms (U.contxt judgment) ++
+  getWordsFromPreterm (U.trm judgment) ++
+  getWordsFromPreterm (U.typ judgment)
 
 getFrequentWords :: [T.Text] -> [T.Text]
 getFrequentWords frequentWords = take 31 $ map fst $ sortOn (Down . snd) $ Map.toList wordFreqMap
@@ -175,7 +179,11 @@ splitSignature signature frequentWords = concatMap (\(name, preterm) ->
   ) signature
 
 splitJudgment :: U.Judgment -> [T.Text] -> [IntermediateConstructor]
-splitJudgment judgment frequentWords = (splitSignature (U.signtr judgment) frequentWords) ++ [EOSig] ++ (splitPreterms (U.contxt judgment) frequentWords) ++ [EOCon] ++ (splitPreterm (U.trm judgment) frequentWords) ++ [EOTerm] ++ (splitPreterm (U.typ judgment) frequentWords) ++ [EOTyp]
+splitJudgment judgment frequentWords =
+  splitSignature (U.signtr judgment) frequentWords ++ [EOSig] ++
+  splitPreterms (U.contxt judgment) frequentWords ++ [EOCon] ++
+  splitPreterm (U.trm judgment) frequentWords ++ [EOTerm] ++
+  splitPreterm (U.typ judgment) frequentWords ++ [EOTyp]
 
 embed :: [IntermediateConstructor] -> [Int]
 embed = map fromEnum
