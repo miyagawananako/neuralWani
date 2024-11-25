@@ -102,6 +102,21 @@ splitPreterm preterm frequentWords = case preterm of
 getWordsFromPreterm :: U.Preterm -> [T.Text]
 getWordsFromPreterm preterm = case preterm of
   U.Con c  -> [c]
+  U.Pi a b -> getWordsFromPreterm a ++ getWordsFromPreterm b
+  U.Lam m  -> getWordsFromPreterm m
+  U.App m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
+  U.Not m  -> getWordsFromPreterm m
+  U.Sigma a b  -> getWordsFromPreterm a ++ getWordsFromPreterm b
+  U.Pair m n   -> getWordsFromPreterm m ++ getWordsFromPreterm n
+  U.Proj _ m   -> getWordsFromPreterm m
+  U.Disj a b   -> getWordsFromPreterm a ++ getWordsFromPreterm b
+  U.Iota _ m   -> getWordsFromPreterm m
+  U.Unpack p h m n -> getWordsFromPreterm p ++ getWordsFromPreterm h ++ getWordsFromPreterm m ++ getWordsFromPreterm n
+  U.Succ n     -> getWordsFromPreterm n
+  U.Natrec n e f -> getWordsFromPreterm n ++ getWordsFromPreterm e ++ getWordsFromPreterm f
+  U.Eq a m n   -> getWordsFromPreterm a ++ getWordsFromPreterm m ++ getWordsFromPreterm n
+  U.Refl a m   -> getWordsFromPreterm a ++ getWordsFromPreterm m
+  U.Idpeel m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
   _ -> []
 
 getWordsFromPreterms :: [U.Preterm] -> [T.Text]
