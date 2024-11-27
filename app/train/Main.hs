@@ -6,6 +6,7 @@ import Data.Store (decode)
 import qualified Data.Map.Strict as Map
 import Data.List (sortOn)
 import Data.Ord (Down(..))
+import qualified Data.Set as Set
 
 saveFilePath :: FilePath
 saveFilePath = "data/proofSearchResult"
@@ -43,12 +44,19 @@ getWordsFromPreterms preterms = concatMap (\preterm -> getWordsFromPreterm prete
 getWordsFromSignature :: U.Signature -> [T.Text]
 getWordsFromSignature signature = concatMap (\(name, preterm) -> [name] ++ getWordsFromPreterm preterm) signature
 
+allowDuplicateWords :: Bool
+allowDuplicateWords = True
+
 getWordsFromJudgment :: U.Judgment -> [T.Text]
 getWordsFromJudgment judgment =
-  getWordsFromSignature (U.signtr judgment) ++
-  getWordsFromPreterms (U.contxt judgment) ++
-  getWordsFromPreterm (U.trm judgment) ++
-  getWordsFromPreterm (U.typ judgment)
+  if allowDuplicateWords then wordList
+  else Set.toList . Set.fromList $ wordList
+  where
+    wordList =
+      getWordsFromSignature (U.signtr judgment) ++
+      getWordsFromPreterms (U.contxt judgment) ++
+      getWordsFromPreterm (U.trm judgment) ++
+      getWordsFromPreterm (U.typ judgment)
 
 getFrequentWords :: [T.Text] -> [T.Text]
 getFrequentWords frequentWords = take 31 $ map fst $ sortOn (Down . snd) $ Map.toList wordFreqMap
@@ -56,7 +64,7 @@ getFrequentWords frequentWords = take 31 $ map fst $ sortOn (Down . snd) $ Map.t
     wordFreqMap :: Map.Map T.Text Int
     wordFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords
 
-data IntermediateConstructor = EOSig | EOCon | EOTerm | EOTyp | FST | SND | LPAREN | RPAREN | COMMA
+data Token = EOSig | EOCon | EOTerm | EOTyp | FST | SND | LPAREN | RPAREN | COMMA
                               | Word1 | Word2 | Word3 | Word4 | Word5 | Word6 | Word7 | Word8 | Word9 | Word10 | Word11 | Word12 | Word13 | Word14 | Word15 | Word16 | Word17 | Word18 | Word19 | Word20 | Word21 | Word22 | Word23 | Word24 | Word25 | Word26 | Word27 | Word28 | Word29 | Word30 | Word31 | UNKNOWN
                               | Var'0 | Var'1 | Var'2 | Var'3 | Var'4 | Var'5 | Var'6 | Var'unknown
                               | Type' | Kind' | Pi' | Lam' | App' | Not' | Sigma' | Pair' | Proj' | Disj' | Iota' | Unpack' | Bot' | Unit' | Top' | Entity' | Nat' | Zero' | Succ' | Natrec' | Eq' | Refl' | Idpeel'
@@ -65,11 +73,11 @@ data IntermediateConstructor = EOSig | EOCon | EOTerm | EOTyp | FST | SND | LPAR
 isParen :: Bool
 isParen = True
 
-wrapWithParen :: [IntermediateConstructor] -> [IntermediateConstructor]
+wrapWithParen :: [Token] -> [Token]
 wrapWithParen xs = if isParen then [LPAREN] ++ xs ++ [RPAREN] else xs
 
-textToIntermediateConstructor :: T.Text -> [T.Text] -> [IntermediateConstructor]
-textToIntermediateConstructor text frequentWords =
+textToToken :: T.Text -> [T.Text] -> [Token]
+textToToken text frequentWords =
   case () of
     _ | length frequentWords > 0 && text == frequentWords !! 0 -> [Word1]
       | length frequentWords > 1 && text == frequentWords !! 1 -> [Word2]
@@ -104,8 +112,8 @@ textToIntermediateConstructor text frequentWords =
       | length frequentWords > 30 && text == frequentWords !! 30 -> [Word31]
       | otherwise -> [UNKNOWN]
 
-varToIntermediateConstructor :: Int -> [IntermediateConstructor]
-varToIntermediateConstructor i =
+varToToken :: Int -> [Token]
+varToToken i =
   case i of
     0 -> [Var'0]
     1 -> [Var'1]
@@ -116,15 +124,15 @@ varToIntermediateConstructor i =
     6 -> [Var'6]
     _ -> [Var'unknown]
 
-selectorToInterMediateConstructor :: U.Selector -> [IntermediateConstructor]
-selectorToInterMediateConstructor s = case s of
+selectorToToken :: U.Selector -> [Token]
+selectorToToken s = case s of
   U.Fst -> [FST]
   U.Snd -> [SND]
 
-splitPreterm :: U.Preterm -> [T.Text] -> [IntermediateConstructor]
+splitPreterm :: U.Preterm -> [T.Text] -> [Token]
 splitPreterm preterm frequentWords = case preterm of
-  U.Var i -> wrapWithParen (varToIntermediateConstructor i)
-  U.Con c -> wrapWithParen (textToIntermediateConstructor c frequentWords)
+  U.Var i -> wrapWithParen (varToToken i)
+  U.Con c -> wrapWithParen (textToToken c frequentWords)
   U.Type -> wrapWithParen [Type']
   U.Kind -> wrapWithParen [Kind']
   U.Pi a b -> wrapWithParen ([Pi'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
@@ -133,9 +141,9 @@ splitPreterm preterm frequentWords = case preterm of
   U.Not m -> wrapWithParen ([Not'] ++ splitPreterm m frequentWords)
   U.Sigma a b -> wrapWithParen ([Sigma'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
   U.Pair m n -> wrapWithParen ([Pair'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
-  U.Proj s m -> wrapWithParen ([Proj'] ++ selectorToInterMediateConstructor s ++ splitPreterm m frequentWords)
+  U.Proj s m -> wrapWithParen ([Proj'] ++ selectorToToken s ++ splitPreterm m frequentWords)
   U.Disj a b -> wrapWithParen ([Disj'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
-  U.Iota s m -> wrapWithParen ([Iota'] ++ selectorToInterMediateConstructor s ++ splitPreterm m frequentWords)
+  U.Iota s m -> wrapWithParen ([Iota'] ++ selectorToToken s ++ splitPreterm m frequentWords)
   U.Unpack p h m n -> wrapWithParen ([Unpack'] ++ splitPreterm p frequentWords ++ splitPreterm h frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
   U.Bot -> wrapWithParen [Bot']
   U.Unit -> wrapWithParen [Unit']
@@ -149,20 +157,20 @@ splitPreterm preterm frequentWords = case preterm of
   U.Refl a m -> wrapWithParen ([Refl'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords)
   U.Idpeel m n -> wrapWithParen ([Idpeel'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
 
-splitPreterms:: [U.Preterm] -> [T.Text]-> [IntermediateConstructor]
+splitPreterms:: [U.Preterm] -> [T.Text]-> [Token]
 splitPreterms preterms frequentWords = concatMap (\preterm -> splitPreterm preterm frequentWords) preterms
 
-splitSignature :: U.Signature -> [T.Text] -> [IntermediateConstructor]
-splitSignature signature frequentWords = concatMap (\(name, preterm) -> wrapWithParen (textToIntermediateConstructor name frequentWords ++ [COMMA] ++ splitPreterm preterm frequentWords)) signature
+splitSignature :: U.Signature -> [T.Text] -> [Token]
+splitSignature signature frequentWords = concatMap (\(name, preterm) -> wrapWithParen (textToToken name frequentWords ++ [COMMA] ++ splitPreterm preterm frequentWords)) signature
 
-splitJudgment :: U.Judgment -> [T.Text] -> [IntermediateConstructor]
+splitJudgment :: U.Judgment -> [T.Text] -> [Token]
 splitJudgment judgment frequentWords =
   splitSignature (U.signtr judgment) frequentWords ++ [EOSig] ++
   splitPreterms (U.contxt judgment) frequentWords ++ [EOCon] ++
   splitPreterm (U.trm judgment) frequentWords ++ [EOTerm] ++
   splitPreterm (U.typ judgment) frequentWords ++ [EOTyp]
 
-embed :: [IntermediateConstructor] -> [Int]
+embed :: [Token] -> [Int]
 embed = map fromEnum
 
 main :: IO()
