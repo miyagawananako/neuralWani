@@ -62,6 +62,12 @@ data IntermediateConstructor = EOSig | EOCon | EOTerm | EOTyp | FST | SND | LPAR
                               | Type' | Kind' | Pi' | Lam' | App' | Not' | Sigma' | Pair' | Proj' | Disj' | Iota' | Unpack' | Bot' | Unit' | Top' | Entity' | Nat' | Zero' | Succ' | Natrec' | Eq' | Refl' | Idpeel'
   deriving (Enum, Show)
 
+isParen :: Bool
+isParen = True
+
+wrapWithParen :: [IntermediateConstructor] -> [IntermediateConstructor]
+wrapWithParen xs = if isParen then [LPAREN] ++ xs ++ [RPAREN] else xs
+
 textToIntermediateConstructor :: T.Text -> [T.Text] -> [IntermediateConstructor]
 textToIntermediateConstructor text frequentWords =
   case () of
@@ -98,54 +104,56 @@ textToIntermediateConstructor text frequentWords =
       | length frequentWords > 30 && text == frequentWords !! 30 -> [Word31]
       | otherwise -> [UNKNOWN]
 
+varToIntermediateConstructor :: Int -> [IntermediateConstructor]
+varToIntermediateConstructor i =
+  case i of
+    0 -> [Var'0]
+    1 -> [Var'1]
+    2 -> [Var'2]
+    3 -> [Var'3]
+    4 -> [Var'4]
+    5 -> [Var'5]
+    6 -> [Var'6]
+    _ -> [Var'unknown]
+
+selectorToInterMediateConstructor :: U.Selector -> [IntermediateConstructor]
+selectorToInterMediateConstructor s = case s of
+  U.Fst -> [FST]
+  U.Snd -> [SND]
+
 splitPreterm :: U.Preterm -> [T.Text] -> [IntermediateConstructor]
 splitPreterm preterm frequentWords = case preterm of
-  U.Var j  ->
-    case j of
-      0 -> [LPAREN] ++ [Var'0] ++ [RPAREN]
-      1 -> [LPAREN] ++ [Var'1] ++ [RPAREN]
-      2 -> [LPAREN] ++ [Var'2] ++ [RPAREN]
-      3 -> [LPAREN] ++ [Var'3] ++ [RPAREN]
-      4 -> [LPAREN] ++ [Var'4] ++ [RPAREN]
-      5 -> [LPAREN] ++ [Var'5] ++ [RPAREN]
-      6 -> [LPAREN] ++ [Var'6] ++ [RPAREN]
-      _ -> [LPAREN] ++ [Var'unknown] ++ [RPAREN]
-  U.Con c  -> [LPAREN] ++ textToIntermediateConstructor c frequentWords ++ [RPAREN]
-  U.Type   -> [LPAREN] ++ [Type'] ++ [RPAREN]
-  U.Kind   -> [LPAREN] ++ [Kind'] ++ [RPAREN]
-  U.Pi a b -> [LPAREN] ++ [Pi'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords ++ [RPAREN]
-  U.Lam m      -> [LPAREN] ++ [Lam'] ++ splitPreterm m frequentWords ++ [RPAREN]
-  U.App m n    -> [LPAREN] ++ [App'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords ++ [RPAREN]
-  U.Not m  -> [LPAREN] ++ [Not'] ++ splitPreterm m frequentWords ++ [RPAREN]
-  U.Sigma a b  -> [LPAREN] ++ [Sigma'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords ++ [RPAREN]
-  U.Pair m n   -> [LPAREN] ++ [Pair'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords ++ [RPAREN]
-  U.Proj s m   ->
-    case s of
-      U.Fst -> [LPAREN] ++ [Proj'] ++ [FST] ++ splitPreterm m frequentWords ++ [RPAREN]
-      U.Snd -> [LPAREN] ++ [Proj'] ++ [SND] ++ splitPreterm m frequentWords ++ [RPAREN]
-  U.Disj a b   -> [LPAREN] ++ [Disj'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords ++ [RPAREN]
-  U.Iota s m   ->
-    case s of
-      U.Fst -> [LPAREN] ++ [Iota'] ++ [FST] ++ splitPreterm m frequentWords ++ [RPAREN]
-      U.Snd -> [LPAREN] ++ [Iota'] ++ [SND] ++ splitPreterm m frequentWords ++ [RPAREN]
-  U.Unpack p h m n -> [LPAREN] ++ [Unpack'] ++ splitPreterm p frequentWords ++ splitPreterm h frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords ++ [RPAREN]
-  U.Bot        -> [LPAREN] ++ [Bot'] ++ [RPAREN]
-  U.Unit       -> [LPAREN] ++ [Unit'] ++ [RPAREN]
-  U.Top        -> [LPAREN] ++ [Top'] ++ [RPAREN]
-  U.Entity     -> [LPAREN] ++ [Entity'] ++ [RPAREN]
-  U.Nat        -> [LPAREN] ++ [Nat'] ++ [RPAREN]
-  U.Zero       -> [LPAREN] ++ [Zero'] ++ [RPAREN]
-  U.Succ n     -> [LPAREN] ++ [Succ'] ++ splitPreterm n frequentWords ++ [RPAREN]
-  U.Natrec n e f -> [LPAREN] ++ [Natrec'] ++ splitPreterm n frequentWords ++ splitPreterm e frequentWords ++ splitPreterm f frequentWords ++ [RPAREN]
-  U.Eq a m n   -> [LPAREN] ++ [Eq'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords ++ [RPAREN]
-  U.Refl a m   -> [LPAREN] ++ [Refl'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords ++ [RPAREN]
-  U.Idpeel m n -> [LPAREN] ++ [Idpeel'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords ++ [RPAREN]
+  U.Var i -> wrapWithParen (varToIntermediateConstructor i)
+  U.Con c -> wrapWithParen (textToIntermediateConstructor c frequentWords)
+  U.Type -> wrapWithParen [Type']
+  U.Kind -> wrapWithParen [Kind']
+  U.Pi a b -> wrapWithParen ([Pi'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
+  U.Lam m -> wrapWithParen ([Lam'] ++ splitPreterm m frequentWords)
+  U.App m n -> wrapWithParen ([App'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
+  U.Not m -> wrapWithParen ([Not'] ++ splitPreterm m frequentWords)
+  U.Sigma a b -> wrapWithParen ([Sigma'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
+  U.Pair m n -> wrapWithParen ([Pair'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
+  U.Proj s m -> wrapWithParen ([Proj'] ++ selectorToInterMediateConstructor s ++ splitPreterm m frequentWords)
+  U.Disj a b -> wrapWithParen ([Disj'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
+  U.Iota s m -> wrapWithParen ([Iota'] ++ selectorToInterMediateConstructor s ++ splitPreterm m frequentWords)
+  U.Unpack p h m n -> wrapWithParen ([Unpack'] ++ splitPreterm p frequentWords ++ splitPreterm h frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
+  U.Bot -> wrapWithParen [Bot']
+  U.Unit -> wrapWithParen [Unit']
+  U.Top -> wrapWithParen [Top']
+  U.Entity -> wrapWithParen [Entity']
+  U.Nat -> wrapWithParen [Nat']
+  U.Zero -> wrapWithParen [Zero']
+  U.Succ m -> wrapWithParen ([Succ'] ++ splitPreterm m frequentWords)
+  U.Natrec n e f -> wrapWithParen ([Natrec'] ++ splitPreterm n frequentWords ++ splitPreterm e frequentWords ++ splitPreterm f frequentWords)
+  U.Eq a m n -> wrapWithParen ([Eq'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
+  U.Refl a m -> wrapWithParen ([Refl'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords)
+  U.Idpeel m n -> wrapWithParen ([Idpeel'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
 
 splitPreterms:: [U.Preterm] -> [T.Text]-> [IntermediateConstructor]
 splitPreterms preterms frequentWords = concatMap (\preterm -> splitPreterm preterm frequentWords) preterms
 
 splitSignature :: U.Signature -> [T.Text] -> [IntermediateConstructor]
-splitSignature signature frequentWords = concatMap (\(name, preterm) -> [LPAREN] ++ textToIntermediateConstructor name frequentWords ++ [COMMA] ++ splitPreterm preterm frequentWords ++ [RPAREN]) signature
+splitSignature signature frequentWords = concatMap (\(name, preterm) -> wrapWithParen (textToIntermediateConstructor name frequentWords ++ [COMMA] ++ splitPreterm preterm frequentWords)) signature
 
 splitJudgment :: U.Judgment -> [T.Text] -> [IntermediateConstructor]
 splitJudgment judgment frequentWords =
