@@ -13,6 +13,18 @@ extra-deps:
     commit: 1fbf5a7dceffdf5156c178d1b297e660121886ff
   - git: git@github.com:hinarid/waniTest.git
     commit: 1fbc5e13f29c9b4b823c42cae15e853dc0b79b3b
+  - hasktorch-0.0.1.0@sha256:b65c874ee2229dd106713cad078ad7cf89d3428e39f717ea5453f215993d0f90,99068
+  - dimensions-2.1.1.0@sha256:ce33d4765e00e726ae7925f226fc685abd81afc7853cb861b4e04c186e90ad5a,2263
+  - hasktorch-ffi-th-0.0.1.0@sha256:dfc18adfd84be0b57ac5ab55b85cb5ee7beda61f517f0243044960a3182c944e,5791
+  - hasktorch-ffi-thc-0.0.1.0@sha256:dec926c6fdbf1a4e1af05a93c1f37c44bfb7f10508c3cce8c79707a35e1f22d0,10103
+  - hasktorch-indef-0.0.1.0@sha256:ee0678444b830e087066fb398ca6071d321c8eaba5f39fcecfd096947e1fe60c,13179
+  - hasktorch-signatures-partial-0.0.1.0@sha256:890fca52f6a153055ae07c6539c84e5ff098769841a23716eca386369b6054d0,1885
+  - hasktorch-types-th-0.0.1.0@sha256:cd720211f8059f9392d550bddebebe15d0bc1274bd0f7209cbf27265113dff7d,1765
+  - hasktorch-types-thc-0.0.1.0@sha256:a20fe08b1542cdc6f19bddde9db34060e89af782e25a2b53e58587754a7383cc,1817
+  - constraints-deriving-1.1.1.2@sha256:7e875b19b72920064e30ab722f01a7de2d4ee7840c2889c116297a4549262b72,4027
+  - hasktorch-signatures-0.0.1.0@sha256:cdb50cd0113eb611a45a0af21f72858c38cb9dc305ff95a69ec7c80daf910691,30646
+  - hasktorch-signatures-support-0.0.1.0@sha256:5e7e6aff05983244031b18aaf2930aa9fe3e9fa8b2701c6e2bd5a57e276182c8,1608
+  - hasktorch-signatures-types-0.0.1.0@sha256:6ae252a6056d616b57545f98a5b2d566115f862e4810583d2b6043c5c4d64235,1524
 
 build:
   haddock: false

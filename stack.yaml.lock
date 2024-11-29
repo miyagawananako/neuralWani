@@ -48,6 +48,90 @@ packages:
   original:
     commit: 1fbc5e13f29c9b4b823c42cae15e853dc0b79b3b
     git: git@github.com:hinarid/waniTest.git
+- completed:
+    hackage: hasktorch-0.0.1.0@sha256:b65c874ee2229dd106713cad078ad7cf89d3428e39f717ea5453f215993d0f90,99068
+    pantry-tree:
+      sha256: 6828c5dccbe3a236faa6b86a7d0939b208978c5070f59abbbdec40b93ee6354c
+      size: 3598
+  original:
+    hackage: hasktorch-0.0.1.0@sha256:b65c874ee2229dd106713cad078ad7cf89d3428e39f717ea5453f215993d0f90,99068
+- completed:
+    hackage: dimensions-2.1.1.0@sha256:ce33d4765e00e726ae7925f226fc685abd81afc7853cb861b4e04c186e90ad5a,2263
+    pantry-tree:
+      sha256: 5e45ec67acfd851e448db156b7c24859c8447c48f7670080b330c64fc9039a4b
+      size: 1303
+  original:
+    hackage: dimensions-2.1.1.0@sha256:ce33d4765e00e726ae7925f226fc685abd81afc7853cb861b4e04c186e90ad5a,2263
+- completed:
+    hackage: hasktorch-ffi-th-0.0.1.0@sha256:dfc18adfd84be0b57ac5ab55b85cb5ee7beda61f517f0243044960a3182c944e,5791
+    pantry-tree:
+      sha256: 68c5e41fdd260800a0089cac962b305972573ec81bc3bd5b54e94f93fd2546ef
+      size: 7224
+  original:
+    hackage: hasktorch-ffi-th-0.0.1.0@sha256:dfc18adfd84be0b57ac5ab55b85cb5ee7beda61f517f0243044960a3182c944e,5791
+- completed:
+    hackage: hasktorch-ffi-thc-0.0.1.0@sha256:dec926c6fdbf1a4e1af05a93c1f37c44bfb7f10508c3cce8c79707a35e1f22d0,10103
+    pantry-tree:
+      sha256: 3949fe3fd44318f1b6561f57dc947f669900702a55bece1982c8e533dbd4de78
+      size: 13067
+  original:
+    hackage: hasktorch-ffi-thc-0.0.1.0@sha256:dec926c6fdbf1a4e1af05a93c1f37c44bfb7f10508c3cce8c79707a35e1f22d0,10103
+- completed:
+    hackage: hasktorch-indef-0.0.1.0@sha256:ee0678444b830e087066fb398ca6071d321c8eaba5f39fcecfd096947e1fe60c,13179
+    pantry-tree:
+      sha256: 079e93e6094c46c8ff64557bdd1717bfa139d54f94189dbe99ae591091cec2b7
+      size: 6129
+  original:
+    hackage: hasktorch-indef-0.0.1.0@sha256:ee0678444b830e087066fb398ca6071d321c8eaba5f39fcecfd096947e1fe60c,13179
+- completed:
+    hackage: hasktorch-signatures-partial-0.0.1.0@sha256:890fca52f6a153055ae07c6539c84e5ff098769841a23716eca386369b6054d0,1885
+    pantry-tree:
+      sha256: 1384597ede3772a0e7fbf7ebf5573278e68887bb4adb717600f9f2391698da69
+      size: 983
+  original:
+    hackage: hasktorch-signatures-partial-0.0.1.0@sha256:890fca52f6a153055ae07c6539c84e5ff098769841a23716eca386369b6054d0,1885
+- completed:
+    hackage: hasktorch-types-th-0.0.1.0@sha256:cd720211f8059f9392d550bddebebe15d0bc1274bd0f7209cbf27265113dff7d,1765
+    pantry-tree:
+      sha256: 5487a248eb75947a264b8ae80411c83e03c41443b7668cef5ad389e60be3a040
+      size: 798
+  original:
+    hackage: hasktorch-types-th-0.0.1.0@sha256:cd720211f8059f9392d550bddebebe15d0bc1274bd0f7209cbf27265113dff7d,1765
+- completed:
+    hackage: hasktorch-types-thc-0.0.1.0@sha256:a20fe08b1542cdc6f19bddde9db34060e89af782e25a2b53e58587754a7383cc,1817
+    pantry-tree:
+      sha256: ff5d341deee13591d56ad46d8614fd02fd86d8cf26eadd2bc1b8c807d107fb67
+      size: 966
+  original:
+    hackage: hasktorch-types-thc-0.0.1.0@sha256:a20fe08b1542cdc6f19bddde9db34060e89af782e25a2b53e58587754a7383cc,1817
+- completed:
+    hackage: constraints-deriving-1.1.1.2@sha256:7e875b19b72920064e30ab722f01a7de2d4ee7840c2889c116297a4549262b72,4027
+    pantry-tree:
+      sha256: 49c39bb5d120a14f475964b6337288590f12374e94471e6e637c4ca0f5553988
+      size: 3377
+  original:
+    hackage: constraints-deriving-1.1.1.2@sha256:7e875b19b72920064e30ab722f01a7de2d4ee7840c2889c116297a4549262b72,4027
+- completed:
+    hackage: hasktorch-signatures-0.0.1.0@sha256:cdb50cd0113eb611a45a0af21f72858c38cb9dc305ff95a69ec7c80daf910691,30646
+    pantry-tree:
+      sha256: 75e5b33052a1328e9218113a9be0b4efbdaa1fa22dca8b95f50efb78b32ec54e
+      size: 2233
+  original:
+    hackage: hasktorch-signatures-0.0.1.0@sha256:cdb50cd0113eb611a45a0af21f72858c38cb9dc305ff95a69ec7c80daf910691,30646
+- completed:
+    hackage: hasktorch-signatures-support-0.0.1.0@sha256:5e7e6aff05983244031b18aaf2930aa9fe3e9fa8b2701c6e2bd5a57e276182c8,1608
+    pantry-tree:
+      sha256: 7cb178949e2d802a1e57a3bdc8aa1356f5c7639ea41e288e87ebd35287ec6387
+      size: 445
+  original:
+    hackage: hasktorch-signatures-support-0.0.1.0@sha256:5e7e6aff05983244031b18aaf2930aa9fe3e9fa8b2701c6e2bd5a57e276182c8,1608
+- completed:
+    hackage: hasktorch-signatures-types-0.0.1.0@sha256:6ae252a6056d616b57545f98a5b2d566115f862e4810583d2b6043c5c4d64235,1524
+    pantry-tree:
+      sha256: d7eae5e4a9ba6cfd3f1a6c5652590b14e5e2eed88738faecd3edf2504196a409
+      size: 423
+  original:
+    hackage: hasktorch-signatures-types-0.0.1.0@sha256:6ae252a6056d616b57545f98a5b2d566115f862e4810583d2b6043c5c4d64235,1524
 snapshots:
 - completed:
     sha256: 428ec8d5ce932190d3cbe266b9eb3c175cd81e984babf876b64019e2cbe4ea68

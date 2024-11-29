@@ -26,6 +26,7 @@ dependencies:
 - store
 - bytestring
 - list-t
+- hasktorch
 
 ghc-options:
 - -Wall

@@ -36,6 +36,7 @@ library
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , hasktorch
     , lightblue >=0.3
     , list-t
     , store
@@ -54,6 +55,7 @@ executable preprocess-exe
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , hasktorch
     , lightblue >=0.3
     , list-t
     , neuralWani
@@ -73,6 +75,7 @@ executable train-exe
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , hasktorch
     , lightblue >=0.3
     , list-t
     , neuralWani
