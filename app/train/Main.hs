@@ -216,4 +216,7 @@ main = do
   let constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords) trainingData
   -- print constructorData
   let embeddedData = map (\judgment -> embed judgment) constructorData
-  print embeddedData
+  -- print embeddedData
+
+  let ruleList = map (\(_, rule) -> fromEnum rule) trainingData
+  print ruleList
