@@ -64,17 +64,17 @@ getFrequentWords frequentWords = take 31 $ map fst $ sortOn (Down . snd) $ Map.t
     wordFreqMap :: Map.Map T.Text Int
     wordFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords
 
-data Token = EOSig | EOCon | EOTerm | EOTyp | FST | SND | LPAREN | RPAREN | COMMA
-                              | Word1 | Word2 | Word3 | Word4 | Word5 | Word6 | Word7 | Word8 | Word9 | Word10 | Word11 | Word12 | Word13 | Word14 | Word15 | Word16 | Word17 | Word18 | Word19 | Word20 | Word21 | Word22 | Word23 | Word24 | Word25 | Word26 | Word27 | Word28 | Word29 | Word30 | Word31 | UNKNOWN
-                              | Var'0 | Var'1 | Var'2 | Var'3 | Var'4 | Var'5 | Var'6 | Var'unknown
-                              | Type' | Kind' | Pi' | Lam' | App' | Not' | Sigma' | Pair' | Proj' | Disj' | Iota' | Unpack' | Bot' | Unit' | Top' | Entity' | Nat' | Zero' | Succ' | Natrec' | Eq' | Refl' | Idpeel'
+data Token =  FST | SND | COMMA | EOPair | EOPre | EOSig | EOCon | EOTerm | EOTyp | LPAREN | RPAREN | SEP
+            | Word1 | Word2 | Word3 | Word4 | Word5 | Word6 | Word7 | Word8 | Word9 | Word10 | Word11 | Word12 | Word13 | Word14 | Word15 | Word16 | Word17 | Word18 | Word19 | Word20 | Word21 | Word22 | Word23 | Word24 | Word25 | Word26 | Word27 | Word28 | Word29 | Word30 | Word31 | UNKNOWN
+            | Var'0 | Var'1 | Var'2 | Var'3 | Var'4 | Var'5 | Var'6 | Var'unknown
+            | Type' | Kind' | Pi' | Lam' | App' | Not' | Sigma' | Pair' | Proj' | Disj' | Iota' | Unpack' | Bot' | Unit' | Top' | Entity' | Nat' | Zero' | Succ' | Natrec' | Eq' | Refl' | Idpeel'
   deriving (Enum, Show)
 
 isParen :: Bool
-isParen = True
+isParen = False
 
-wrapWithParen :: [Token] -> [Token]
-wrapWithParen xs = if isParen then [LPAREN] ++ xs ++ [RPAREN] else xs
+isSep :: Bool
+isSep = False
 
 textToToken :: T.Text -> [T.Text] -> [Token]
 textToToken text frequentWords =
@@ -129,46 +129,76 @@ selectorToToken s = case s of
   U.Fst -> [FST]
   U.Snd -> [SND]
 
+wrapPreterm :: [Token] -> [Token]
+wrapPreterm xs =
+  if isParen then [LPAREN] ++ xs ++ [RPAREN]
+  else if isSep then xs ++ [SEP] else xs ++ [EOPre]
+
 splitPreterm :: U.Preterm -> [T.Text] -> [Token]
 splitPreterm preterm frequentWords = case preterm of
-  U.Var i -> wrapWithParen (varToToken i)
-  U.Con c -> wrapWithParen (textToToken c frequentWords)
-  U.Type -> wrapWithParen [Type']
-  U.Kind -> wrapWithParen [Kind']
-  U.Pi a b -> wrapWithParen ([Pi'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
-  U.Lam m -> wrapWithParen ([Lam'] ++ splitPreterm m frequentWords)
-  U.App m n -> wrapWithParen ([App'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
-  U.Not m -> wrapWithParen ([Not'] ++ splitPreterm m frequentWords)
-  U.Sigma a b -> wrapWithParen ([Sigma'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
-  U.Pair m n -> wrapWithParen ([Pair'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
-  U.Proj s m -> wrapWithParen ([Proj'] ++ selectorToToken s ++ splitPreterm m frequentWords)
-  U.Disj a b -> wrapWithParen ([Disj'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
-  U.Iota s m -> wrapWithParen ([Iota'] ++ selectorToToken s ++ splitPreterm m frequentWords)
-  U.Unpack p h m n -> wrapWithParen ([Unpack'] ++ splitPreterm p frequentWords ++ splitPreterm h frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
-  U.Bot -> wrapWithParen [Bot']
-  U.Unit -> wrapWithParen [Unit']
-  U.Top -> wrapWithParen [Top']
-  U.Entity -> wrapWithParen [Entity']
-  U.Nat -> wrapWithParen [Nat']
-  U.Zero -> wrapWithParen [Zero']
-  U.Succ m -> wrapWithParen ([Succ'] ++ splitPreterm m frequentWords)
-  U.Natrec n e f -> wrapWithParen ([Natrec'] ++ splitPreterm n frequentWords ++ splitPreterm e frequentWords ++ splitPreterm f frequentWords)
-  U.Eq a m n -> wrapWithParen ([Eq'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
-  U.Refl a m -> wrapWithParen ([Refl'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords)
-  U.Idpeel m n -> wrapWithParen ([Idpeel'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
+  U.Var i -> wrapPreterm (varToToken i)
+  U.Con c -> wrapPreterm (textToToken c frequentWords)
+  U.Type -> wrapPreterm [Type']
+  U.Kind -> wrapPreterm [Kind']
+  U.Pi a b -> wrapPreterm ([Pi'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
+  U.Lam m -> wrapPreterm ([Lam'] ++ splitPreterm m frequentWords)
+  U.App m n -> wrapPreterm ([App'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
+  U.Not m -> wrapPreterm ([Not'] ++ splitPreterm m frequentWords)
+  U.Sigma a b -> wrapPreterm ([Sigma'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
+  U.Pair m n -> wrapPreterm ([Pair'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
+  U.Proj s m -> wrapPreterm ([Proj'] ++ selectorToToken s ++ splitPreterm m frequentWords)
+  U.Disj a b -> wrapPreterm ([Disj'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
+  U.Iota s m -> wrapPreterm ([Iota'] ++ selectorToToken s ++ splitPreterm m frequentWords)
+  U.Unpack p h m n -> wrapPreterm ([Unpack'] ++ splitPreterm p frequentWords ++ splitPreterm h frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
+  U.Bot -> wrapPreterm [Bot']
+  U.Unit -> wrapPreterm [Unit']
+  U.Top -> wrapPreterm [Top']
+  U.Entity -> wrapPreterm [Entity']
+  U.Nat -> wrapPreterm [Nat']
+  U.Zero -> wrapPreterm [Zero']
+  U.Succ m -> wrapPreterm ([Succ'] ++ splitPreterm m frequentWords)
+  U.Natrec n e f -> wrapPreterm ([Natrec'] ++ splitPreterm n frequentWords ++ splitPreterm e frequentWords ++ splitPreterm f frequentWords)
+  U.Eq a m n -> wrapPreterm ([Eq'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
+  U.Refl a m -> wrapPreterm ([Refl'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords)
+  U.Idpeel m n -> wrapPreterm ([Idpeel'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
 
 splitPreterms:: [U.Preterm] -> [T.Text]-> [Token]
 splitPreterms preterms frequentWords = concatMap (\preterm -> splitPreterm preterm frequentWords) preterms
 
+wrapPair :: [Token] -> [Token]
+wrapPair xs =
+  if isParen then [LPAREN] ++ xs ++ [RPAREN]
+  else if isSep then xs ++ [SEP] else xs ++ [EOPair]
+
 splitSignature :: U.Signature -> [T.Text] -> [Token]
-splitSignature signature frequentWords = concatMap (\(name, preterm) -> wrapWithParen (textToToken name frequentWords ++ [COMMA] ++ splitPreterm preterm frequentWords)) signature
+splitSignature signature frequentWords = concatMap (\(name, preterm) -> wrapPair (textToToken name frequentWords ++ [COMMA] ++ splitPreterm preterm frequentWords)) signature
+
+wrapSignature :: [Token] -> [Token]
+wrapSignature xs =
+  if isParen then [LPAREN] ++ xs ++ [RPAREN]
+  else if isSep then xs ++ [SEP] else xs ++ [EOSig]
+
+wrapContext :: [Token] -> [Token]
+wrapContext xs =
+  if isParen then [LPAREN] ++ xs ++ [RPAREN]
+  else if isSep then xs ++ [SEP] else xs ++ [EOCon]
+
+wrapTerm ::[Token] -> [Token]
+wrapTerm xs =
+  if isParen then [LPAREN] ++ xs ++ [RPAREN]
+  else if isSep then xs ++ [SEP] else xs ++ [EOTerm]
+
+wrapTyp :: [Token] -> [Token]
+wrapTyp xs =
+  if isParen then [LPAREN] ++ xs ++ [RPAREN]
+  else if isSep then xs else xs ++ [EOTyp]
 
 splitJudgment :: U.Judgment -> [T.Text] -> [Token]
 splitJudgment judgment frequentWords =
-  splitSignature (U.signtr judgment) frequentWords ++ [EOSig] ++
-  splitPreterms (U.contxt judgment) frequentWords ++ [EOCon] ++
-  splitPreterm (U.trm judgment) frequentWords ++ [EOTerm] ++
-  splitPreterm (U.typ judgment) frequentWords ++ [EOTyp]
+  wrapSignature (splitSignature (U.signtr judgment) frequentWords) ++
+  wrapContext (splitPreterms (U.contxt judgment) frequentWords) ++
+  wrapTerm (splitPreterm (U.trm judgment) frequentWords) ++
+  wrapTyp (splitPreterm (U.typ judgment) frequentWords)
 
 embed :: [Token] -> [Int]
 embed = map fromEnum
