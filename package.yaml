@@ -27,6 +27,8 @@ dependencies:
 - bytestring
 - list-t
 - hasktorch
+- text
+- containers
 
 ghc-options:
 - -Wall

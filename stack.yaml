@@ -10,7 +10,7 @@ extra-deps:
   - git: http://github.com/DaisukeBekki/nlp-tools
     commit: e4bd3783f4e872b8df29538d9219e41f40378363
   - git: git@github.com:miyagawananako/lightblue.git
-    commit: 1fbf5a7dceffdf5156c178d1b297e660121886ff
+    commit: 25fd4ff3cb807e2650005c09f08cbf7b9c47d619
   - git: git@github.com:hinarid/waniTest.git
     commit: 1fbc5e13f29c9b4b823c42cae15e853dc0b79b3b
   - hasktorch-0.0.1.0@sha256:b65c874ee2229dd106713cad078ad7cf89d3428e39f717ea5453f215993d0f90,99068

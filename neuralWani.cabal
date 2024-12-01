@@ -37,9 +37,11 @@ library
       base >=4.7 && <5
     , bytestring
     , hasktorch
+    , containers
     , lightblue >=0.3
     , list-t
     , store
+    , text
     , waniTEST
   default-language: Haskell2010
 
@@ -56,10 +58,12 @@ executable preprocess-exe
       base >=4.7 && <5
     , bytestring
     , hasktorch
+    , containers
     , lightblue >=0.3
     , list-t
     , neuralWani
     , store
+    , text
     , waniTEST
   default-language: Haskell2010
 
@@ -76,9 +80,11 @@ executable train-exe
       base >=4.7 && <5
     , bytestring
     , hasktorch
+    , containers
     , lightblue >=0.3
     , list-t
     , neuralWani
     , store
+    , text
     , waniTEST
   default-language: Haskell2010
