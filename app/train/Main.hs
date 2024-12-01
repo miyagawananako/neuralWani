@@ -219,4 +219,7 @@ main = do
   -- print embeddedData
 
   let ruleList = map (\(_, rule) -> fromEnum rule) trainingData
-  print ruleList
+  -- print ruleList
+
+  let trainingData' = zip embeddedData ruleList
+  print trainingData'
