@@ -26,6 +26,8 @@ dependencies:
 - store
 - bytestring
 - list-t
+- hasktorch >= 0.2
+- hasktorch-tools
 - text
 - containers
 

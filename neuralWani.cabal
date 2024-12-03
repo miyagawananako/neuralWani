@@ -37,6 +37,8 @@ library
       base >=4.7 && <5
     , bytestring
     , containers
+    , hasktorch >=0.2
+    , hasktorch-tools
     , lightblue >=0.3
     , list-t
     , store
@@ -57,6 +59,8 @@ executable preprocess-exe
       base >=4.7 && <5
     , bytestring
     , containers
+    , hasktorch >=0.2
+    , hasktorch-tools
     , lightblue >=0.3
     , list-t
     , neuralWani
@@ -78,6 +82,8 @@ executable train-exe
       base >=4.7 && <5
     , bytestring
     , containers
+    , hasktorch >=0.2
+    , hasktorch-tools
     , lightblue >=0.3
     , list-t
     , neuralWani
