@@ -7,9 +7,8 @@ import qualified DTS.DTTdeBruijn as U
 import qualified Interface.Tree as I
 import qualified Data.ByteString as B --bytestring
 import Data.Store (encode)
-import Data.Function (fix)
 import ListT (toList)
-import Control.Monad (forM)
+import Control.Monad (forM, foldM)
 
 saveFilePath :: FilePath
 saveFilePath = "data/proofSearchResult"
@@ -18,11 +17,15 @@ makePair :: PB.TestType -> IO [(U.Judgment, QT.DTTrule)]
 makePair ts = do
   let proofSearchResult = snd ts
   resultList <- toList proofSearchResult
-  flip fix (resultList, []) $ \loop (searchResults, pairs) ->
-    if null searchResults then return pairs
-    else do
-      let result = head searchResults
-      loop (I.daughters result, pairs ++ [(I.node result, I.ruleName result)])
+  foldM processTree [] resultList
+  where
+    processTree pairs tree = do
+      let daughters = I.daughters tree
+      let newPair = (I.node tree, I.ruleName tree)
+      let updatedPairs = pairs ++ [newPair]
+      if null daughters
+        then return updatedPairs
+        else foldM processTree updatedPairs daughters
 
 getProofSearchResult :: [PB.TestType] -> IO [(U.Judgment, QT.DTTrule)]
 getProofSearchResult ts = do

@@ -222,4 +222,4 @@ main = do
   -- print ruleList
 
   let trainingData' = zip embeddedData ruleList
-  print trainingData'
+  print $ length trainingData'
