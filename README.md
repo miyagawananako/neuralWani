@@ -1,1 +1,1 @@
-# neuralWani
+# Neural Wani
