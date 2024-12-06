@@ -30,6 +30,7 @@ dependencies:
 - hasktorch-tools
 - text
 - containers
+- nlp-tools
 
 ghc-options:
 - -Wall

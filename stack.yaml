@@ -15,7 +15,7 @@ extra-deps:
   - git: http://github.com/DaisukeBekki/JSeM.git
     commit: c2cd39168e267007b4690dbf625329bac57a8185
   - git: git@github.com:miyagawananako/lightblue.git
-    commit: e47ab1cb2e0f171c8cbdf7a7cdc3104fbe0888d3
+    commit: f07d3dbfac4b807f7985d060b91dcd5119241e64
   - git: git@github.com:hinarid/waniTest.git
     commit: 1fbc5e13f29c9b4b823c42cae15e853dc0b79b3b
 # for hasktorch

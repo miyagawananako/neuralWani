@@ -41,6 +41,7 @@ library
     , hasktorch-tools
     , lightblue >=0.3
     , list-t
+    , nlp-tools
     , store
     , text
     , waniTEST
@@ -64,6 +65,7 @@ executable preprocess-exe
     , lightblue >=0.3
     , list-t
     , neuralWani
+    , nlp-tools
     , store
     , text
     , waniTEST
@@ -87,6 +89,7 @@ executable train-exe
     , lightblue >=0.3
     , list-t
     , neuralWani
+    , nlp-tools
     , store
     , text
     , waniTEST

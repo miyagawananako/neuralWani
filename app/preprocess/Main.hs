@@ -35,4 +35,5 @@ getProofSearchResult ts = do
 main :: IO()
 main = do
   searchResults <- getProofSearchResult (SP.yes ++ DP.yes ++ NLPP.yes)
+  print $ length searchResults
   B.writeFile saveFilePath (encode searchResults)
