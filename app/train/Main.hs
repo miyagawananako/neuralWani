@@ -258,28 +258,33 @@ forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO Tensor
 forward device model dataset = do
   let (oneHotToken, _) = oneHotFactory tokens  -- 固定値なので別のところにおきたい
   let input = asTensor'' device $ map tail $ map oneHotToken $ fst dataset  -- 形状は揃えるかも
-  print input  -- Tensor Float [14,76]
-  let (oneHotLabels, _) = oneHotFactory labels  -- 固定値なので別のところにおきたい
-  let groundTruth = asTensor'' device (tail (oneHotLabels $ snd dataset))
-  -- print groundTruth
+  -- print input  -- Tensor Float [14,76]
   let lstm = lstmLayers (lstmParams model)
   randomTensor <- randnIO' device [2, length labels]
   -- print randomTensor
   let (lstmOutput, (_, _)) = lstm Nothing (randomTensor, randomTensor) input
   -- print lstmOutput
+  pure lstmOutput
+
+predict :: Device -> Params -> ([Token], QT.DTTrule) -> IO Tensor
+predict device model dataset = do
+  let (oneHotLabels, _) = oneHotFactory labels  -- 固定値なので別のところにおきたい
+  let groundTruth = asTensor'' device (tail (oneHotLabels $ snd dataset))
+  -- print groundTruth
+  lstmOutput <- forward device model dataset
   let mlp = linearLayer (mlpParams model)
   let lstmOutput_value = asValue lstmOutput :: [[Float]]
   -- print lstmOutput_value
   let lastOutput = last lstmOutput_value
-  print lastOutput
-  print $ length lastOutput
-  print $ (reshape [length labels, 1] $ asTensor'' device lastOutput)  -- Tensor Float [23]
+  -- print lastOutput
+  -- print $ length lastOutput
+  -- print $ (reshape [length labels, 1] $ asTensor'' device lastOutput)  -- Tensor Float [23]
   let output = mlp $ (transpose2D $ reshape [length labels, 1] $ asTensor'' device lastOutput)
-  print output
-  print $ reshape [length labels] output
+  -- print output
+  -- print $ reshape [length labels] output
   let output' = softmax (Dim 0) (reshape [length labels] output)-- Tensor Float [23]
-  print output'
-  print groundTruth
+  -- print output'
+  -- print groundTruth
   let loss = binaryCrossEntropyLoss' output' groundTruth  -- Prelude.!!: index too largeのエラーが出る→直した
   pure loss
 
@@ -308,7 +313,7 @@ main = do
   let trainData = zip constructorData ruleList
   print $ length trainData
 
-  let iter = 1 :: Int
+  let iter = 10 :: Int
       device = Device CPU 0
       input_size = length tokens
       -- lstm_dim = 32
@@ -316,17 +321,21 @@ main = do
       wemb_dim = length labels  -- hiddenSize（これじゃダメな気がする）
       proj_size = Nothing -- これがよくわからない
       hyperParams = HypParams device (LstmHypParams device False input_size wemb_dim numOfLayers True proj_size) wemb_dim  -- 合っているか怪しいwemb_dimを使いすぎている
-      learningRate = 4e-3
+      learningRate = 4e-3 :: Tensor
       graphFileName = "graph-seq-class.png"
       modelFileName = "seq-class.model"
   initModel <- sample hyperParams
   -- print initModel
   ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
-    batchLoss <- forward device model (trainData !! 0)  -- 1データのみ
+    batchLoss <- predict device model (trainData !! 0)  -- 1データのみ
     let lossValue = (asValue batchLoss) :: Float
+    print lossValue
     showLoss 5 epoc lossValue
+    print batchLoss  -- Tensor Float []  8.1535 
     u <- update model opt batchLoss learningRate
+    print u  -- 出力されない
     return (u, lossValue)
-  -- |
+
+  print losses
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName "Learning Curve" [("", reverse losses)]
