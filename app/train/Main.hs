@@ -15,7 +15,7 @@ import qualified Data.Set as Set
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor)
 import Torch.Device       (Device(..),DeviceType(..))
-import Torch.Functional   (Dim(..),cat,logSoftmax,matmul,nllLoss',argmax,KeepDim(..))
+import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss')
 import Torch.NN           (Parameter,Parameterized,Randomizable,sample)
 import Torch.Autograd     (IndependentTensor(..),makeIndependent)
 import Torch.Optim        (GD(..))
@@ -89,7 +89,7 @@ data Token =  FST | SND | COMMA | EOPair | EOPre | EOSig | EOCon | EOTerm | EOTy
             | Word1 | Word2 | Word3 | Word4 | Word5 | Word6 | Word7 | Word8 | Word9 | Word10 | Word11 | Word12 | Word13 | Word14 | Word15 | Word16 | Word17 | Word18 | Word19 | Word20 | Word21 | Word22 | Word23 | Word24 | Word25 | Word26 | Word27 | Word28 | Word29 | Word30 | Word31 | UNKNOWN
             | Var'0 | Var'1 | Var'2 | Var'3 | Var'4 | Var'5 | Var'6 | Var'unknown
             | Type' | Kind' | Pi' | Lam' | App' | Not' | Sigma' | Pair' | Proj' | Disj' | Iota' | Unpack' | Bot' | Unit' | Top' | Entity' | Nat' | Zero' | Succ' | Natrec' | Eq' | Refl' | Idpeel'
-  deriving (Enum, Show)
+  deriving (Enum, Show, Bounded, Eq, Ord)
 
 isParen :: Bool
 isParen = False
@@ -221,11 +221,14 @@ splitJudgment judgment frequentWords =
   wrapTerm (splitPreterm (U.trm judgment) frequentWords) ++
   wrapTyp (splitPreterm (U.typ judgment) frequentWords)
 
-embed :: [Token] -> [Int]
-embed = map fromEnum
+-- embed :: [Token] -> [Int]
+-- embed = map fromEnum
 
 labels :: [QT.DTTrule]
 labels = [minBound..]
+
+tokens :: [Token]
+tokens = [minBound..]
 
 -- 初期化のためのハイパーパラメータ
 data HypParams = HypParams {
@@ -238,7 +241,7 @@ data HypParams = HypParams {
 data Params = Params {
   lstmParams :: LstmParams,
   w_emb :: Parameter, -- 再度埋め込む必要はないのでは？
-  mlpParams :: LinearParams
+  mlpParams :: LinearParams 
   } deriving (Show, Generic)
 
 instance Parameterized Params
@@ -248,78 +251,39 @@ instance Randomizable HypParams Params where
     Params
       <$> sample lstmHypParams
       <*> (makeIndependent =<< randnIO' dev [hiddenSize lstmHypParams, wemb_dim])
-      <*> sample (LinearHypParams dev (Torch.Layer.LSTM.hasBias lstmHypParams) (inputSize lstmHypParams) $ length labels)
+      <*> sample (LinearHypParams dev (Torch.Layer.LSTM.hasBias lstmHypParams) (hiddenSize lstmHypParams) $ length labels)
 
--- データ一つで扱うべきでは？
--- forward :: Device -> Params -> [([Int], Int)] -> IO (Tensor, Tensor)
--- forward device model dataset = do
---   let lstm = lstmLayers (lstmParams model)
---       -- wemb = toDependent (w_emb model)
---       mlp = linearLayer (mlpParams model)
---       input = cat (Dim 0) $ map (\(x, _) -> asTensor'' device x) dataset
---       -- target = asTensor'' device $ map snd dataset
---       groundTruths = cat (Dim 0) $ map (reshape [1] . (asTensor'' device)) $ snd $ unzip $ dataset
---   print $ shape input  -- [36059]
---   -- print $ shape wemb  -- [32,32]
---   let (lstmOutput, _) = lstm Nothing (input, input) input
---       output = mlp lstmOutput
---   print $ shape output
---   let loss = nllLoss' (logSoftmax (Dim 1) output) groundTruths
---   pure (loss, output)
-
--- データ一つで頑張る！
 -- lstmレイヤーが 初期の隠れ状態とセル状態のペアを引数に取る理由を考える
-forward :: Device -> Params -> ([Int], QT.DTTrule) -> IO (Tensor, Tensor)
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO Tensor
 forward device model dataset = do
-  let input = reshape [length $ fst dataset, 1] $ asTensor'' device $ fst dataset
-  -- print $ shape input  -- [15, 1]
-  -- print input -- いい感じ！！！！！
-  let (onehot, _) = oneHotFactory labels  -- 固定値なので別のところにおくおかしい気がする
-  print labels
-  -- print onehot
-  let truth = tail (onehot $ snd dataset)  -- 最初の要素の未知語分をどうするか？
-  print truth
-  let groundTruth = asTensor'' device truth
-  print groundTruth
-  -- let groundTruth = asTensor'' device [snd dataset]  -- Tensor Float [1] [ 0.0000]いい感じ！→ではなく、1ホットにできないか？
+  let (oneHotToken, _) = oneHotFactory tokens  -- 固定値なので別のところにおきたい
+  let input = asTensor'' device $ map tail $ map oneHotToken $ fst dataset  -- 形状は揃えるかも
+  print input  -- Tensor Float [14,76]
+  let (oneHotLabels, _) = oneHotFactory labels  -- 固定値なので別のところにおきたい
+  let groundTruth = asTensor'' device (tail (oneHotLabels $ snd dataset))
   -- print groundTruth
-  -- print $ fromEnum $ snd dataset
-  -- ^ a pair of initial tensors: <D*numLayers,hDim>
-  -- let (initialHidden, initialCell) = (ones' [2, 32], ones' [2, 32]) -- 型がわからない。
   let lstm = lstmLayers (lstmParams model)
-  -- print lstm 出力されていない
   randomTensor <- randnIO' device [2, length labels]
-  let (lstmOutput, (h, c)) = lstm Nothing (randomTensor, randomTensor) input
-  -- -- lstmOutput :: Tensor [15,23]の最後の要素だけ取り出す
-  -- -- print lstmOutput  -- Tensor Float [15,1]どういう形？？（これをmlpにかけることでもしかしてうまくいく？
-  -- -- print h  -- これは何？？？？Tensor Float [2,1]
-  -- print c  -- これが使いたい結果っぽい！Tensor Float [2,32]（32はhiddenSizeだから関係なさそう）
-  -- let c_value = asValue $ c :: [[Float]]
-  -- print c_value
-  -- let lastOutput = last c_value
-  -- print lastOutput -- いい感じ？
+  -- print randomTensor
+  let (lstmOutput, (_, _)) = lstm Nothing (randomTensor, randomTensor) input
+  -- print lstmOutput
   let mlp = linearLayer (mlpParams model)
-  -- -- print $ shape (asTensor'' device lastOutput)
-  -- -- print (reshape [length labels, 1] $ asTensor'' device lastOutput)
-  -- let output = mlp $ reshape [length labels, 1] $ asTensor'' device lastOutput -- ここができていない
-  -- print $ shape output  --[23,23]？？？？？？何これ増えた本当にわからない-> mlpで23次元にするものなのかも。LSTMの段階では埋め込んでいるだけ
-  -- print output
-  -- let output' = logSoftmax (Dim 0) $ output
-  -- print output'
-  -- print $ shape output'
   let lstmOutput_value = asValue lstmOutput :: [[Float]]
-  print lstmOutput_value
+  -- print lstmOutput_value
   let lastOutput = last lstmOutput_value
-  print lastOutput  -- [-0.33574963]
-  print $ asTensor'' device lastOutput  -- Tensor Float [1] [-0.3357   ] 桁数が違う
-  let output = mlp $ asTensor'' device lastOutput  -- Tensor Float [23]
+  print lastOutput
+  print $ length lastOutput
+  print $ (reshape [length labels, 1] $ asTensor'' device lastOutput)  -- Tensor Float [23]
+  let output = mlp $ (transpose2D $ reshape [length labels, 1] $ asTensor'' device lastOutput)
   print output
-  let output' = logSoftmax (Dim 0) output-- Tensor Float [23]
+  print $ reshape [length labels] output
+  let output' = softmax (Dim 0) (reshape [length labels] output)-- Tensor Float [23]
   print output'
-  let loss = nllLoss' output' groundTruth
-  pure (loss, output')
+  print groundTruth
+  let loss = binaryCrossEntropyLoss' output' groundTruth  -- Prelude.!!: index too largeのエラーが出る→直した
+  pure loss
 
--- 上記の関数での以下のエラーを解消する
+-- 上記の関数での以下のエラーを解消する→出なくなった
 -- Exception: Differentiated tensor has more than a single element; type: std::runtime_error
 -- train-exe: CppStdException e "Differentiated tensor has more than a single element"(Just "std::runtime_error")
 
@@ -335,22 +299,22 @@ main = do
 
   let constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords) dataset
   -- print constructorData
-  let embeddedData = map (\judgment -> embed judgment) constructorData
-  -- print embeddedData
+  -- let embeddedData = map (\judgment -> embed judgment) constructorData
+  -- -- print embeddedData
 
   let ruleList = map (\(_, rule) -> rule) dataset
   -- print ruleList
 
-  let trainData = zip embeddedData ruleList
+  let trainData = zip constructorData ruleList
   print $ length trainData
 
   let iter = 1 :: Int
       device = Device CPU 0
-      input_size = 1
+      input_size = length tokens
       -- lstm_dim = 32
       numOfLayers = 2
-      wemb_dim = length labels  -- hiddenSize
-      proj_size = Just 1  -- これがよくわからない
+      wemb_dim = length labels  -- hiddenSize（これじゃダメな気がする）
+      proj_size = Nothing -- これがよくわからない
       hyperParams = HypParams device (LstmHypParams device False input_size wemb_dim numOfLayers True proj_size) wemb_dim  -- 合っているか怪しいwemb_dimを使いすぎている
       learningRate = 4e-3
       graphFileName = "graph-seq-class.png"
@@ -358,7 +322,7 @@ main = do
   initModel <- sample hyperParams
   -- print initModel
   ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
-    (_, batchLoss) <- forward device model (trainData !! 0)  -- 1データのみ
+    batchLoss <- forward device model (trainData !! 0)  -- 1データのみ
     let lossValue = (asValue batchLoss) :: Float
     showLoss 5 epoc lossValue
     u <- update model opt batchLoss learningRate
