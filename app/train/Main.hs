@@ -29,10 +29,12 @@ saveFilePath = "data/proofSearchResult"
 -- embed = map fromEnum
 
 labels :: [QT.DTTrule]
-labels = [minBound..]
+-- labels = [minBound..]
+labels = [QT.Var, QT.Con]
 
 tokens :: [Token]
-tokens = [minBound..]
+-- tokens = [minBound..]
+tokens = [Word1,COMMA,Type']
 
 -- 初期化のためのハイパーパラメータ
 data HypParams = HypParams {
@@ -71,12 +73,9 @@ oneHotToken = ret
 forward :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> IO Tensor
 forward device model dataset numOfLayers = do
   let input = asTensor'' device $ map tail $ map oneHotToken $ fst dataset  -- 形状は揃えるかも
-  -- print input  -- Tensor Float [14,76]
   let lstm = lstmLayers (lstmParams model)
   randomTensor <- randnIO' device [numOfLayers, length labels]
-  -- print randomTensor
   let (lstmOutput, (_, _)) = lstm Nothing (randomTensor, randomTensor) input
-  -- print lstmOutput
   pure lstmOutput
 
 predict :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> IO Tensor
@@ -115,7 +114,10 @@ main = do
   print $ length labels
   print $ length tokens
 
-  let iter = 10 :: Int
+  print $ head trainData
+  -- ([Word1,COMMA,Type',EOPre,EOPair,EOSig,Word1,EOPre,EOCon,Var'0,EOPre,EOTerm,Word1,EOPre,EOTyp],Var)
+
+  let iter = 1 :: Int
       device = Device CPU 0
       input_size = length tokens
       -- lstm_dim = 32
@@ -129,12 +131,13 @@ main = do
   initModel <- sample hyperParams
   -- print initModel
   ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
-    batchLoss <- predict device model (trainData !! 0) numOfLayers  -- 1データのみ
-    let lossValue = (asValue batchLoss) :: Float
+    -- loss <- predict device model (trainData !! 0) numOfLayers  -- 1データのみ
+    loss <- predict device model ([Word1,COMMA,Type'], QT.Var) numOfLayers
+    let lossValue = (asValue loss) :: Float
     print lossValue
     showLoss 5 epoc lossValue
-    print batchLoss  -- Tensor Float []  8.1535
-    u <- update model opt batchLoss learningRate
+    print loss  -- Tensor Float []  8.1535
+    u <- update model opt loss learningRate
     print u  -- 出力されない
     return (u, lossValue)
 
