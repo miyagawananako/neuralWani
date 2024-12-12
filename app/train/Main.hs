@@ -29,12 +29,12 @@ saveFilePath = "data/proofSearchResult"
 -- embed = map fromEnum
 
 labels :: [QT.DTTrule]
--- labels = [minBound..]
-labels = [QT.Var, QT.Con]
+labels = [minBound..]
+-- labels = [QT.Var, QT.Con]
 
 tokens :: [Token]
--- tokens = [minBound..]
-tokens = [Word1,COMMA,Type']
+tokens = [minBound..]
+-- tokens = [Word1,COMMA,Type']
 
 -- 初期化のためのハイパーパラメータ
 data HypParams = HypParams {
@@ -52,6 +52,7 @@ data Params = Params {
 
 instance Parameterized Params
 
+-- data Paramsをここでつくる
 instance Randomizable HypParams Params where
   sample HypParams{..} = do
     Params
@@ -118,13 +119,17 @@ main = do
   -- ([Word1,COMMA,Type',EOPre,EOPair,EOSig,Word1,EOPre,EOCon,Var'0,EOPre,EOTerm,Word1,EOPre,EOTyp],Var)
 
   let iter = 1 :: Int
-      device = Device CPU 0
+      device = Device CUDA 0
+      biDirectional = True
       input_size = length tokens
       -- lstm_dim = 32
       numOfLayers = 1
-      wemb_dim = length labels  -- hiddenSize（これじゃダメな気がする）
+      hiddenSize = length labels--ゃダメな気がする）適当にかいてもforwardはすすんでしまう
+      has_bias = True
+      wemb_dim = length labels
+      -- (oneHotFor, wemb_dim) = oneHotFactory tokens
       proj_size = Nothing -- これがよくわからない
-      hyperParams = HypParams device (LstmHypParams device False input_size wemb_dim numOfLayers True proj_size) wemb_dim  -- 合っているか怪しいwemb_dimを使いすぎている
+      hyperParams = HypParams device (LstmHypParams device biDirectional input_size hiddenSize numOfLayers has_bias proj_size) wemb_dim  -- 合っているか怪しいwemb_dimを使いすぎている
       learningRate = 4e-3 :: Tensor
       graphFileName = "graph-seq-class.png"
       modelFileName = "seq-class.model"
