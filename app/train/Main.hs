@@ -30,11 +30,11 @@ saveFilePath = "data/proofSearchResult"
 
 labels :: [QT.DTTrule]
 -- labels = [minBound..]
-labels = [QT.Var, QT.Con]
+labels = [QT.Var, QT.Con, QT.Conv]
 
 tokens :: [Token]
 -- tokens = [minBound..]
-tokens = [Word1,COMMA,Type']
+tokens = [Word1,COMMA,Type',Word2,Word3]
 
 -- 初期化のためのハイパーパラメータ
 data HypParams = HypParams {
@@ -69,19 +69,33 @@ oneHotToken = ret
   where
     (ret, _) = oneHotFactory tokens
 
+-- (7x12 and 14x1)でエラーが出ている。lstmLayerのなかで
 -- lstmレイヤーが 初期の隠れ状態とセル状態のペアを引数に取る理由を考える
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> IO Tensor
-forward device model dataset numOfLayers = do
-  let input = asTensor'' device $ map tail $ map oneHotToken $ fst dataset  -- 形状は揃えるかも
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> Int -> IO Tensor
+forward device model dataset numOfLayers hiddenSize = do
+  -- let input_original = asTensor'' device $ map tail $ map oneHotToken $ fst dataset  -- 形状は揃えるかも
+  -- print input_original  -- Tensor Float [5,5] いい感じ
+  let input_original = map tail $ map oneHotToken $ fst dataset  -- 形状は揃えるかも
+  print input_original  -- Tensor Float [5,5] いい感じ
+  -- let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device $ tail (oneHotToken w))) $ fst dataset
+  let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device w)) $ input_original
+  print input
+  print $ cat (Dim 0) input
+  print $ reshape [length input_original, hiddenSize] $ cat (Dim 0) input
+  -- print $ cat (Dim 0) input
+  -- ここまでは大丈夫
   let lstm = lstmLayers (lstmParams model)
-  randomTensor <- randnIO' device [numOfLayers, length labels]
-  let (lstmOutput, (_, _)) = lstm Nothing (randomTensor, randomTensor) input
+  randomTensor <- randnIO' device [numOfLayers, hiddenSize] --- このサイズがおかしいかも(5はtokensの数)
+  -- let (lstmOutput, (_, _)) = lstm Nothing (randomTensor, randomTensor) input
+  let dropout_prob = Nothing
+  let (lstmOutput, (_, _)) = lstm dropout_prob (randomTensor, randomTensor) $ (reshape [length input_original, hiddenSize] $ cat (Dim 0) input)
+  print lstmOutput  --  出力されない!!!!!!!!
   pure lstmOutput
 
-predict :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> IO Tensor
-predict device model dataset numOfLayers = do
+predict :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> Int -> IO Tensor
+predict device model dataset numOfLayers hiddenSize = do
   let groundTruth = asTensor'' device (tail (oneHotLabel $ snd dataset))
-  lstmOutput <- forward device model dataset numOfLayers
+  lstmOutput <- forward device model dataset numOfLayers hiddenSize
   let mlp = linearLayer (mlpParams model)
   let lstmOutput_value = asValue lstmOutput :: [[Float]]
   let lastOutput = last lstmOutput_value
@@ -117,15 +131,17 @@ main = do
   print $ head trainData
   -- ([Word1,COMMA,Type',EOPre,EOPair,EOSig,Word1,EOPre,EOCon,Var'0,EOPre,EOTerm,Word1,EOPre,EOTyp],Var)
 
+  -- input_sizeとwemb_dimが同じなのはいいのか
   let iter = 1 :: Int
       device = Device CPU 0
       biDirectional = False
       input_size = length tokens
       -- lstm_dim = 32
       numOfLayers = 1
-      hiddenSize = length labels--ゃダメな気がする）適当にかいてもforwardはすすんでしまう
+      hiddenSize = 7 --ゃダメな気がする）適当にかいてもforwardはすすんでしまう
       has_bias = True
-      wemb_dim = length labels
+      -- wemb_dim = length labels
+      wemb_dim = length tokens
       -- (oneHotFor, wemb_dim) = oneHotFactory tokens
       proj_size = Nothing -- これがよくわからない
       hyperParams = HypParams device (LstmHypParams device biDirectional input_size hiddenSize numOfLayers has_bias proj_size) wemb_dim
@@ -136,7 +152,7 @@ main = do
   -- print initModel
   ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
     -- loss <- predict device model (trainData !! 0) numOfLayers  -- 1データのみ
-    loss <- predict device model ([Word1,COMMA,Type'], QT.Var) numOfLayers
+    loss <- predict device model ([Word1,COMMA,Type',Word2,Word3,Word3], QT.Var) numOfLayers hiddenSize
     let lossValue = (asValue loss) :: Float
     print lossValue
     showLoss 5 epoc lossValue
