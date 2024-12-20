@@ -40,29 +40,30 @@ tokens = [Word1,COMMA,Type',Word2]
 data HypParams = HypParams {
   dev :: Device,
   lstmHypParams :: LstmHypParams,
-  -- wemb_dim :: Int
-  vocab_size :: Int
+  vocab_size :: Int,
+  num_layers :: Int,
+  hidden_size :: Int
   } deriving (Eq, Show)
 
 -- 学習されるパラメータmodelはこの型
 data Params = Params {
   lstmParams :: LstmParams,
-  w_emb :: Parameter, -- 再度埋め込む必要はないのでは？
-  mlpParams :: LinearParams
-  -- h0c0 :: (Tensor, Tensor)
+  w_emb :: Parameter,
+  mlpParams :: LinearParams,
+  h0c0 :: (Tensor, Tensor)
   } deriving (Show, Generic)
 
 instance Parameterized Params
 
--- ここも怪しい
 instance Randomizable HypParams Params where
   sample HypParams{..} = do
+    randomTensor1 <- randnIO' dev [num_layers, hidden_size]
+    randomTensor2 <- randnIO' dev [num_layers, hidden_size]
     Params
       <$> sample lstmHypParams
       <*> (makeIndependent =<< randnIO' dev [inputSize lstmHypParams, vocab_size])
-      <*> sample (LinearHypParams dev (Torch.Layer.LSTM.hasBias lstmHypParams) (hiddenSize lstmHypParams) $ (length labels + 1))
-      -- <*> (makeIndependent =<< randnIO' dev [hiddenSize lstmHypParams, wemb_dim])
-      -- <*> sample (LinearHypParams dev (Torch.Layer.LSTM.hasBias lstmHypParams) (hiddenSize lstmHypParams) $ length labels + 1)
+      <*> sample (LinearHypParams dev (Torch.Layer.LSTM.hasBias lstmHypParams) (hidden_size) $ (length labels + 1))
+      <*> pure (randomTensor1, randomTensor2)
 
 oneHotLabel :: QT.DTTrule -> [Float]
 oneHotLabel = ret -- 一箇所にまとめる, embedding'を使うと良さそう
@@ -74,28 +75,13 @@ oneHotToken = ret
   where
     (ret, _) = oneHotFactory tokens
 
--- (7x12 and 14x1)でエラーが出ている。lstmLayerのなかで
--- inputのxt, htが6x1になっていることが原因かも？？
--- lstmレイヤーが 初期の隠れ状態とセル状態のペアを引数に取る理由を考える
 forward :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> Int -> IO Tensor
 forward device model dataset numOfLayers hiddenSize = do
-  let input_original = map oneHotToken $ fst dataset  -- 形状は揃えるかも
-  print "input_original"
-  print input_original
+  let input_original = map oneHotToken $ fst dataset
   let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device w)) $ input_original
-  print "input"
-  print input
-  -- ここまでは大丈夫
   let lstm = lstmLayers (lstmParams model)
-  randomTensor <- randnIO' device [numOfLayers, hiddenSize] --- このサイズがおかしいかも(5はtokensの数)
-  -- let (lstmOutput, (_, _)) = lstm Nothing (randomTensor, randomTensor) input
   let dropout_prob = Nothing
-  print (stack (Dim 0) input)
-  -- print (cat (Dim 0) input)
-  -- print (cat (Dim 1) input)
-  let (lstmOutput, (_, _)) = lstm dropout_prob (randomTensor, randomTensor) $ (stack (Dim 0) input)
-  print "lstmOutput"
-  print lstmOutput  --  出力されない!!!!!!!!
+  let (lstmOutput, (_, _)) = lstm dropout_prob (h0c0 model) $ (stack (Dim 0) input)
   pure lstmOutput
 
 predict :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> Int -> IO Tensor
@@ -103,15 +89,8 @@ predict device model dataset numOfLayers hiddenSize = do
   let groundTruth = asTensor'' device (oneHotLabel $ snd dataset)
   lstmOutput <- forward device model dataset numOfLayers hiddenSize
   let mlp = linearLayer (mlpParams model)
-  -- let lstmOutput_value = asValue lstmOutput :: [[Float]]
-  -- let lastOutput = last lstmOutput_value
-  -- let output = mlp $ (transpose2D $ reshape [length labels + 1, 1] $ asTensor'' device lastOutput)
   let output = mlp $  lstmOutput
-  print "output"
-  print output
   let output' = softmax (Dim 0) (reshape [length labels+1] output)
-  print "output'"
-  print output'
   let loss = binaryCrossEntropyLoss' output' groundTruth
   pure loss
 
@@ -142,23 +121,16 @@ main = do
   print $ head trainData
   -- ([Word1,COMMA,Type',EOPre,EOPair,EOSig,Word1,EOPre,EOCon,Var'0,EOPre,EOTerm,Word1,EOPre,EOTyp],Var)
 
-  -- input_sizeとwemb_dimが同じなのはいいのか
   let iter = 1 :: Int
       device = Device CPU 0
       biDirectional = False
-      -- input_size = length tokens
-      -- (_, input_size) = oneHotFactory tokens -- wembのサイズで書くように。
       input_size = 2
-      -- lstm_dim = 32
       numOfLayers = 1
-      hiddenSize = 7 --ゃダメな気がする）適当にかいてもforwardはすすんでしまう
+      hiddenSize = 7
       has_bias = False
-      -- wemb_dim = length labels
-      (_, vocabSize) = oneHotFactory tokens  -- なんでこうなっているの？(input_sizeと同じになっている)
-      -- wemb_dim = 4
-      -- (oneHotFor, wemb_dim) = oneHotFactory tokens
-      proj_size = Nothing -- これがよくわからない
-      hyperParams = HypParams device (LstmHypParams device biDirectional input_size hiddenSize numOfLayers has_bias proj_size) vocabSize
+      (_, vocabSize) = oneHotFactory tokens
+      proj_size = Nothing
+      hyperParams = HypParams device (LstmHypParams device biDirectional input_size hiddenSize numOfLayers has_bias proj_size) vocabSize numOfLayers hiddenSize
       learningRate = 4e-3 :: Tensor
       graphFileName = "graph-seq-class.png"
       modelFileName = "seq-class.model"
