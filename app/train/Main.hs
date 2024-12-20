@@ -39,10 +39,14 @@ tokens = [Word1,COMMA,Type',Word2]
 -- 初期化のためのハイパーパラメータ
 data HypParams = HypParams {
   dev :: Device,
-  lstmHypParams :: LstmHypParams,
+  bi_directional :: Bool,
+  input_size :: Int,
+  has_bias :: Bool,
+  proj_size :: Maybe Int,
   vocab_size :: Int,
   num_layers :: Int,
-  hidden_size :: Int
+  hidden_size :: Int,
+  num_rules :: Int
   } deriving (Eq, Show)
 
 -- 学習されるパラメータmodelはこの型
@@ -60,9 +64,9 @@ instance Randomizable HypParams Params where
     randomTensor1 <- randnIO' dev [num_layers, hidden_size]
     randomTensor2 <- randnIO' dev [num_layers, hidden_size]
     Params
-      <$> sample lstmHypParams
-      <*> (makeIndependent =<< randnIO' dev [inputSize lstmHypParams, vocab_size])
-      <*> sample (LinearHypParams dev (Torch.Layer.LSTM.hasBias lstmHypParams) (hidden_size) $ (length labels + 1))
+      <$> sample (LstmHypParams dev bi_directional input_size hidden_size num_layers has_bias proj_size)
+      <*> (makeIndependent =<< randnIO' dev [input_size, vocab_size])
+      <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (randomTensor1, randomTensor2)
 
 oneHotLabel :: QT.DTTrule -> [Float]
@@ -130,7 +134,8 @@ main = do
       has_bias = False
       (_, vocabSize) = oneHotFactory tokens
       proj_size = Nothing
-      hyperParams = HypParams device (LstmHypParams device biDirectional input_size hiddenSize numOfLayers has_bias proj_size) vocabSize numOfLayers hiddenSize
+      (_, numOfRules) = oneHotFactory labels
+      hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 4e-3 :: Tensor
       graphFileName = "graph-seq-class.png"
       modelFileName = "seq-class.model"
