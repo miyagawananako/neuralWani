@@ -7,7 +7,7 @@ import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor)
 import Torch.Device       (Device(..),DeviceType(..))
-import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack)
+import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack, embedding')
 import Torch.NN           (Parameter,Parameterized,Randomizable,sample)
 import Torch.Autograd     (IndependentTensor(..),makeIndependent)
 import Torch.Optim        (GD(..))
@@ -69,32 +69,25 @@ instance Randomizable HypParams Params where
       <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (randomTensor1, randomTensor2)
 
-oneHotLabel :: QT.DTTrule -> [Float]
-oneHotLabel = ret -- 一箇所にまとめる, embedding'を使うと良さそう
-  where
-    (ret, _) = oneHotFactory labels
-
-oneHotToken :: Token -> [Float]
-oneHotToken = ret
-  where
-    (ret, _) = oneHotFactory tokens
-
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> Int -> IO Tensor
-forward device model dataset numOfLayers hiddenSize = do
-  let input_original = map oneHotToken $ fst dataset
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> IO Tensor
+forward device model dataset oneHotTokens = do
+  let input_original = map oneHotTokens $ fst dataset
   let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device w)) $ input_original
   let lstm = lstmLayers (lstmParams model)
   let dropout_prob = Nothing
   let (lstmOutput, (_, _)) = lstm dropout_prob (h0c0 model) $ (stack (Dim 0) input)
   pure lstmOutput
 
-predict :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> Int -> IO Tensor
-predict device model dataset numOfLayers hiddenSize = do
-  let groundTruth = asTensor'' device (oneHotLabel $ snd dataset)
-  lstmOutput <- forward device model dataset numOfLayers hiddenSize
+predict :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> (QT.DTTrule -> [Float]) -> IO Tensor
+predict device model dataset oneHotTokens oneHotLabels = do
+  let groundTruth = asTensor'' device (oneHotLabels $ snd dataset)
+  lstmOutput <- forward device model dataset oneHotTokens
   let mlp = linearLayer (mlpParams model)
-  let output = mlp $  lstmOutput
-  let output' = softmax (Dim 0) (reshape [length labels+1] output)
+  let output = mlp $ lstmOutput
+  let shapeOutput = shape output
+  let output' = case shapeOutput of
+        [_, n] -> softmax (Dim 0) (reshape [n] output)
+        _      -> error $ "Unexpected shape: " ++ show shapeOutput
   let loss = binaryCrossEntropyLoss' output' groundTruth
   pure loss
 
@@ -132,9 +125,9 @@ main = do
       numOfLayers = 1
       hiddenSize = 7
       has_bias = False
-      (_, vocabSize) = oneHotFactory tokens
+      (oneHotTokens, vocabSize) = oneHotFactory tokens  -- TODO: embedding'を使う
       proj_size = Nothing
-      (_, numOfRules) = oneHotFactory labels
+      (oneHotLabels, numOfRules) = oneHotFactory labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 4e-3 :: Tensor
       graphFileName = "graph-seq-class.png"
@@ -143,13 +136,13 @@ main = do
   -- print initModel
   ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
     -- loss <- predict device model (trainData !! 0) numOfLayers  -- 1データのみ
-    loss <- predict device model ([Word1], QT.Var) numOfLayers hiddenSize
+    loss <- predict device model ([Word1], QT.Var) oneHotTokens oneHotLabels
     let lossValue = (asValue loss) :: Float
     print lossValue
     showLoss 5 epoc lossValue
     print loss  -- Tensor Float []  8.1535
     u <- update model opt loss learningRate
-    print u  -- 出力されない
+    print u  -- NaNが含まれている
     return (u, lossValue)
 
   print losses
