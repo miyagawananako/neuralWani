@@ -30,11 +30,11 @@ saveFilePath = "data/proofSearchResult"
 
 labels :: [QT.DTTrule]
 -- labels = [minBound..]
-labels = [QT.Var, QT.Con, QT.Conv]
+labels = [QT.Var, QT.Con]
 
 tokens :: [Token]
 -- tokens = [minBound..]
-tokens = [Word1,COMMA,Type',Word2,Word3]
+tokens = [Word1,COMMA,Type',Word2]
 
 -- 初期化のためのハイパーパラメータ
 data HypParams = HypParams {
@@ -52,12 +52,15 @@ data Params = Params {
 
 instance Parameterized Params
 
+-- ここも怪しい
 instance Randomizable HypParams Params where
   sample HypParams{..} = do
     Params
       <$> sample lstmHypParams
       <*> (makeIndependent =<< randnIO' dev [hiddenSize lstmHypParams, wemb_dim])
-      <*> sample (LinearHypParams dev (Torch.Layer.LSTM.hasBias lstmHypParams) (hiddenSize lstmHypParams) $ length labels)
+      <*> sample (LinearHypParams dev (Torch.Layer.LSTM.hasBias lstmHypParams) (hiddenSize lstmHypParams) $ (length labels + 1))
+      -- <*> (makeIndependent =<< randnIO' dev [hiddenSize lstmHypParams, wemb_dim])
+      -- <*> sample (LinearHypParams dev (Torch.Layer.LSTM.hasBias lstmHypParams) (hiddenSize lstmHypParams) $ length labels + 1)
 
 oneHotLabel :: QT.DTTrule -> [Float]
 oneHotLabel = ret
@@ -70,19 +73,16 @@ oneHotToken = ret
     (ret, _) = oneHotFactory tokens
 
 -- (7x12 and 14x1)でエラーが出ている。lstmLayerのなかで
+-- inputのxt, htが6x1になっていることが原因かも？？
 -- lstmレイヤーが 初期の隠れ状態とセル状態のペアを引数に取る理由を考える
 forward :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> Int -> IO Tensor
 forward device model dataset numOfLayers hiddenSize = do
-  -- let input_original = asTensor'' device $ map tail $ map oneHotToken $ fst dataset  -- 形状は揃えるかも
-  -- print input_original  -- Tensor Float [5,5] いい感じ
-  let input_original = map tail $ map oneHotToken $ fst dataset  -- 形状は揃えるかも
-  print input_original  -- Tensor Float [5,5] いい感じ
-  -- let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device $ tail (oneHotToken w))) $ fst dataset
+  let input_original = map oneHotToken $ fst dataset  -- 形状は揃えるかも
+  print "input_original"
+  print input_original
   let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device w)) $ input_original
+  print "input"
   print input
-  print $ cat (Dim 0) input
-  print $ reshape [length input_original, hiddenSize] $ cat (Dim 0) input
-  -- print $ cat (Dim 0) input
   -- ここまでは大丈夫
   let lstm = lstmLayers (lstmParams model)
   randomTensor <- randnIO' device [numOfLayers, hiddenSize] --- このサイズがおかしいかも(5はtokensの数)
@@ -94,7 +94,7 @@ forward device model dataset numOfLayers hiddenSize = do
 
 predict :: Device -> Params -> ([Token], QT.DTTrule) -> Int -> Int -> IO Tensor
 predict device model dataset numOfLayers hiddenSize = do
-  let groundTruth = asTensor'' device (tail (oneHotLabel $ snd dataset))
+  let groundTruth = asTensor'' device (oneHotLabel $ snd dataset)
   lstmOutput <- forward device model dataset numOfLayers hiddenSize
   let mlp = linearLayer (mlpParams model)
   let lstmOutput_value = asValue lstmOutput :: [[Float]]
@@ -125,8 +125,8 @@ main = do
   let trainData = zip constructorData ruleList
   print $ length trainData
 
-  print $ length labels
-  print $ length tokens
+  print $ length labels + 1
+  print $ length tokens + 1
 
   print $ head trainData
   -- ([Word1,COMMA,Type',EOPre,EOPair,EOSig,Word1,EOPre,EOCon,Var'0,EOPre,EOTerm,Word1,EOPre,EOTyp],Var)
@@ -135,13 +135,15 @@ main = do
   let iter = 1 :: Int
       device = Device CPU 0
       biDirectional = False
-      input_size = length tokens
+      -- input_size = length tokens
+      (_, input_size) = oneHotFactory tokens
       -- lstm_dim = 32
       numOfLayers = 1
       hiddenSize = 7 --ゃダメな気がする）適当にかいてもforwardはすすんでしまう
-      has_bias = True
+      has_bias = False
       -- wemb_dim = length labels
-      wemb_dim = length tokens
+      (_, wemb_dim) = oneHotFactory tokens  -- なんでこうなっているの？(input_sizeと同じになっている)
+      -- wemb_dim = 4
       -- (oneHotFor, wemb_dim) = oneHotFactory tokens
       proj_size = Nothing -- これがよくわからない
       hyperParams = HypParams device (LstmHypParams device biDirectional input_size hiddenSize numOfLayers has_bias proj_size) wemb_dim
@@ -152,7 +154,7 @@ main = do
   -- print initModel
   ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
     -- loss <- predict device model (trainData !! 0) numOfLayers  -- 1データのみ
-    loss <- predict device model ([Word1,COMMA,Type',Word2,Word3,Word3], QT.Var) numOfLayers hiddenSize
+    loss <- predict device model ([Word1], QT.Var) numOfLayers hiddenSize
     let lossValue = (asValue loss) :: Float
     print lossValue
     showLoss 5 epoc lossValue

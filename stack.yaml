@@ -44,8 +44,8 @@ extra-deps:
   - inline-c-cpp-0.5.0.2
   - git: http://github.com/DaisukeBekki/nlp-tools
     commit: e4bd3783f4e872b8df29538d9219e41f40378363
-  - git: http://github.com/DaisukeBekki/hasktorch-tools.git
-    commit: 3f589a6eaf158df972bac922feda22b76f4ab82b
+  - git: http://github.com/miyagawananako/hasktorch-tools.git
+    commit: cbf79fd151ebb4a460443eb9c514529cdb95f30c
 # for hasktorch-nlp-introduction
   - jsonl-0.2.0.0@sha256:35f8a3816f0b93830008709a8e64c0c69b9bc632a92c54b3be3345bfccba4a5c,1465
 
