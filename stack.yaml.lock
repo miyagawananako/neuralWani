@@ -147,15 +147,15 @@ packages:
     commit: e4bd3783f4e872b8df29538d9219e41f40378363
     git: http://github.com/DaisukeBekki/nlp-tools
 - completed:
-    commit: 9edd5b5af9dea3fa885a1b7917bc7c9123ce2a93
+    commit: 9a22a7802c6978ce022916475810880f451bcc0c
     git: http://github.com/miyagawananako/hasktorch-tools.git
     name: hasktorch-tools
     pantry-tree:
-      sha256: 7410e9206ee9f13b322371f75db2e0569789bbaebea8ac5b54296dc2a495225c
+      sha256: 9844f23675f1a3da049b8fff5a65cb4a938f434941311e815cba52ae4056931e
       size: 3081
     version: 0.2.0.7
   original:
-    commit: 9edd5b5af9dea3fa885a1b7917bc7c9123ce2a93
+    commit: 9a22a7802c6978ce022916475810880f451bcc0c
     git: http://github.com/miyagawananako/hasktorch-tools.git
 - completed:
     hackage: jsonl-0.2.0.0@sha256:35f8a3816f0b93830008709a8e64c0c69b9bc632a92c54b3be3345bfccba4a5c,1465

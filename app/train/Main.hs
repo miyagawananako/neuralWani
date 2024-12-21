@@ -4,6 +4,10 @@
 
 import GHC.Generics                   --base
 import qualified DTS.QueryTypes as QT
+import Control.Monad (forM_)
+import Data.Function(fix)
+import System.Random.Shuffle (shuffleM)
+import Data.Maybe
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, asTensor', sliceDim)
 import Torch.Device       (Device(..),DeviceType(..))
@@ -131,7 +135,7 @@ main = do
       proj_size = Nothing
       (oneHotLabels, numOfRules) = oneHotFactory labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = 4e-3 :: Tensor
+      learningRate = 4e-10 :: Tensor
       graphFileName = "graph-seq-class.png"
       modelFileName = "seq-class.model"
   initModel <- sample hyperParams
@@ -140,13 +144,35 @@ main = do
     -- loss <- predict device model (trainData !! 0) oneHotTokens oneHotLabels  -- 1データのみ
     loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
     let lossValue = (asValue loss) :: Float
-    print lossValue
+    print $ "lossValue " ++ show lossValue
     showLoss 5 epoc lossValue
-    print loss  -- Tensor Float []  8.1535
+    print $ "loss " ++ show loss  -- Tensor Float []  8.1535
     u <- update model opt loss learningRate
-    print u  -- NaNが含まれている
+    print $ "u " ++ show u  -- NaNが含まれている
     return (u, lossValue)
+  -- 複数データ
+  -- ((trainedModel), losses) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
+  --   initRandamTrainData <- shuffleM trainData
+  --   flip fix (0, model, initRandamTrainData, 0) $ \loop (i, mdl, data_list, lastLossValue) -> do
+  --     -- if i < length trainData then do
+  --     --   loss <- predict device model (trainData !! i) oneHotTokens oneHotLabels  -- 1データのみ
+  --     if length data_list > 0 then do
+  --       let (oneData, restDataList) = splitAt 1 data_list
+  --       print $ "oneData" ++ show oneData
+  --       print $ "restDataList" ++ show (length restDataList)
+  --       loss <- predict device mdl (head oneData) oneHotTokens oneHotLabels
+  --       -- loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
+  --       let lossValue = (asValue loss) :: Float
+  --       print $ "lossValue " ++ show lossValue
+  --       showLoss 5 epoc lossValue
+  --       print $ "loss " ++ show loss  -- Tensor Float []  8.1535  -- 最終的にはここがNaNになって止まる
+  --       u <- update model GD loss learningRate
+  --       print $ "u " ++ show u  -- NaNが含まれている
+  --       let (newModel, _) = u
+  --       loop (i + 1, newModel, restDataList, lossValue)
+  --     else return (mdl, lastLossValue)
+  --   -- return (u, lossValue)
 
-  print losses
+  print $ "losses " ++ show losses
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName "Learning Curve" [("", reverse losses)]
