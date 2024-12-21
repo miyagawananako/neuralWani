@@ -72,21 +72,29 @@ instance Randomizable HypParams Params where
       <$> sample (LstmHypParams dev bi_directional input_size hidden_size num_layers has_bias proj_size)
       <*> (makeIndependent =<< randnIO' dev [input_size, vocab_size])
       <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
-      <*> pure (randomTensor1, randomTensor2)
+      <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> IO Tensor
-forward device model dataset oneHotTokens = do
-  let input_original = map oneHotTokens $ fst dataset
-  let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device w)) $ input_original
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO Tensor
+forward device model dataset = do
+  -- let input_original = map oneHotTokens $ fst dataset
+  -- let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device w)) $ input_original
+  let inputIndices = map fromEnum $ fst dataset
+  print inputIndices
+  let idxs = asTensor'' device (map fromIntegral inputIndices :: [Int])
+  print idxs
+  let input = embedding' (toDependent $ w_emb model) idxs
+  print input
   let lstm = lstmLayers (lstmParams model)
   let dropout_prob = Nothing
-  let (lstmOutput, (_, _)) = lstm dropout_prob (h0c0 model) $ (stack (Dim 0) input)
+  -- let (lstmOutput, (_, _)) = lstm dropout_prob (h0c0 model) $ (stack (Dim 0) input)
+  let (lstmOutput, (_, _)) = lstm dropout_prob (h0c0 model) $ input
   pure lstmOutput
 
-predict :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> (QT.DTTrule -> [Float]) -> IO Tensor
-predict device model dataset oneHotTokens oneHotLabels = do
+predict :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO Tensor
+predict device model dataset oneHotLabels = do
   let groundTruth = asTensor'' device (oneHotLabels $ snd dataset)
-  lstmOutput <- forward device model dataset oneHotTokens
+  -- let groundTruth = embedding' (asTensor'' device [fromEnum $ snd dataset])
+  lstmOutput <- forward device model dataset
   let mlp = linearLayer (mlpParams model)
   let output = mlp $ lstmOutput
   let shapeOutput = shape output
@@ -131,18 +139,20 @@ main = do
       numOfLayers = 1
       hiddenSize = 7
       has_bias = False
-      (oneHotTokens, vocabSize) = oneHotFactory tokens  -- TODO: embedding'を使う
+      -- (oneHotTokens, vocabSize) = oneHotFactory tokens  -- TODO: embedding'を使う
+      vocabSize = length tokens
       proj_size = Nothing
       (oneHotLabels, numOfRules) = oneHotFactory labels
+      -- numOfRules = length labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = 4e-10 :: Tensor
+      learningRate = 1e-3 :: Tensor
       graphFileName = "graph-seq-class.png"
       modelFileName = "seq-class.model"
   initModel <- sample hyperParams
   -- print initModel
   ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
-    -- loss <- predict device model (trainData !! 0) oneHotTokens oneHotLabels  -- 1データのみ
-    loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
+    -- loss <- predict device model (trainData !! 0) oneHotLabels  -- 1データのみ
+    loss <- predict device model ([Word1, Word2], QT.Var) oneHotLabels
     let lossValue = (asValue loss) :: Float
     print $ "lossValue " ++ show lossValue
     showLoss 5 epoc lossValue
