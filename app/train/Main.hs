@@ -5,7 +5,7 @@
 import GHC.Generics                   --base
 import qualified DTS.QueryTypes as QT
 --hasktorch
-import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor)
+import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, asTensor', sliceDim)
 import Torch.Device       (Device(..),DeviceType(..))
 import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack, embedding')
 import Torch.NN           (Parameter,Parameterized,Randomizable,sample)
@@ -28,13 +28,14 @@ saveFilePath = "data/proofSearchResult"
 -- embed :: [Token] -> [Int]
 -- embed = map fromEnum
 
+-- TODO: minBoundを使えるようにlightblueをupdateする
 labels :: [QT.DTTrule]
--- labels = [minBound..]
-labels = [QT.Var, QT.Con]
+labels = [minBound..]
+-- labels = [QT.Var, QT.Con]
 
 tokens :: [Token]
--- tokens = [minBound..]
-tokens = [Word1,COMMA,Type',Word2]
+tokens = [minBound..]
+-- tokens = [Word1,COMMA,Type',Word2]
 
 -- 初期化のためのハイパーパラメータ
 data HypParams = HypParams {
@@ -86,7 +87,8 @@ predict device model dataset oneHotTokens oneHotLabels = do
   let output = mlp $ lstmOutput
   let shapeOutput = shape output
   let output' = case shapeOutput of
-        [_, n] -> softmax (Dim 0) (reshape [n] output)
+        [1, n] -> softmax (Dim 0) (reshape [n] output)
+        [_, n] -> softmax (Dim 0) (reshape [n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
         _      -> error $ "Unexpected shape: " ++ show shapeOutput
   let loss = binaryCrossEntropyLoss' output' groundTruth
   pure loss
@@ -135,8 +137,8 @@ main = do
   initModel <- sample hyperParams
   -- print initModel
   ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
-    -- loss <- predict device model (trainData !! 0) numOfLayers  -- 1データのみ
-    loss <- predict device model ([Word1], QT.Var) oneHotTokens oneHotLabels
+    -- loss <- predict device model (trainData !! 0) oneHotTokens oneHotLabels  -- 1データのみ
+    loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
     let lossValue = (asValue loss) :: Float
     print lossValue
     showLoss 5 epoc lossValue
