@@ -4,14 +4,14 @@
 
 import GHC.Generics                   --base
 import qualified DTS.QueryTypes as QT
-import Control.Monad (forM_)
+import Control.Monad (forM_, forM)
 import Data.Function(fix)
 import System.Random.Shuffle (shuffleM)
 import Data.Maybe
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, asTensor', sliceDim)
 import Torch.Device       (Device(..),DeviceType(..))
-import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack, embedding')
+import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack, embedding', logSoftmax)
 import Torch.NN           (Parameter,Parameterized,Randomizable,sample)
 import Torch.Autograd     (IndependentTensor(..),makeIndependent)
 import Torch.Optim        (GD(..))
@@ -64,6 +64,7 @@ data Params = Params {
 
 instance Parameterized Params
 
+-- data Paramsをここでつくる
 instance Randomizable HypParams Params where
   sample HypParams{..} = do
     randomTensor1 <- randnIO' dev [num_layers, hidden_size]
@@ -88,22 +89,38 @@ forward device model dataset = do
   let dropout_prob = Nothing
   -- let (lstmOutput, (_, _)) = lstm dropout_prob (h0c0 model) $ (stack (Dim 0) input)
   let (lstmOutput, (_, _)) = lstm dropout_prob (h0c0 model) $ input
+  print $ "lstmOutput " ++ show lstmOutput
   pure lstmOutput
 
-predict :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO Tensor
+predict :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool)
 predict device model dataset oneHotLabels = do
   let groundTruth = asTensor'' device (oneHotLabels $ snd dataset)
+  let groundTruth' = argmax (Dim 0) KeepDim groundTruth
+  -- let groundTruth' = case shape groundTruth of
+  --       [n] -> reshape [1, n] groundTruth
+  --       _   -> error $ "Unexpected shape: " ++ show (shape groundTruth)
   -- let groundTruth = embedding' (asTensor'' device [fromEnum $ snd dataset])
   lstmOutput <- forward device model dataset
   let mlp = linearLayer (mlpParams model)
   let output = mlp $ lstmOutput
   let shapeOutput = shape output
-  let output' = case shapeOutput of
+  print $ "shapeOutput " ++ show shapeOutput
+  let y' = case shapeOutput of
         [1, n] -> softmax (Dim 0) (reshape [n] output)
         [_, n] -> softmax (Dim 0) (reshape [n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
         _      -> error $ "Unexpected shape: " ++ show shapeOutput
-  let loss = binaryCrossEntropyLoss' output' groundTruth
-  pure loss
+  print $ "y' " ++ show y'
+  let output' = case shapeOutput of
+        [1, n] -> logSoftmax (Dim 1) (reshape [1, n] output)
+        [_, n] -> logSoftmax (Dim 1) (reshape [1, n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
+        _      -> error $ "Unexpected shape: " ++ show shapeOutput
+  -- let output' = logSoftmax (Dim 1) output  -- (バッチサイズ, クラス数)になるようにする
+  print $ "groundTruth " ++ show groundTruth'
+  print $ "output' " ++ show output'
+  let loss = nllLoss' groundTruth' output'
+  let classLabels = argmax (Dim 0) KeepDim y'
+  let isCorrect = groundTruth' == classLabels
+  pure (loss, isCorrect)
 
 main :: IO()
 main = do
@@ -123,17 +140,13 @@ main = do
   let ruleList = map (\(_, rule) -> rule) dataset
   -- print ruleList
 
-  let trainData = zip constructorData ruleList
-  print $ length trainData
+  allData <- shuffleM $ zip constructorData ruleList
+  let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
+  let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
-  print $ length labels + 1
-  print $ length tokens + 1
-
-  print $ head trainData
-  -- ([Word1,COMMA,Type',EOPre,EOPair,EOSig,Word1,EOPre,EOCon,Var'0,EOPre,EOTerm,Word1,EOPre,EOTyp],Var)
-
+  -- input_sizeとwemb_dimが同じなのはいいのか
   let iter = 1 :: Int
-      device = Device CPU 0
+      device = Device CUDA 0
       biDirectional = False
       input_size = 2
       numOfLayers = 1
@@ -149,10 +162,10 @@ main = do
       graphFileName = "graph-seq-class.png"
       modelFileName = "seq-class.model"
   initModel <- sample hyperParams
-  -- print initModel
+  print $ "initModel " ++ show initModel
   ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
-    -- loss <- predict device model (trainData !! 0) oneHotLabels  -- 1データのみ
-    loss <- predict device model ([Word1, Word2], QT.Var) oneHotLabels
+    (loss, _) <- predict device model (trainData !! 0) oneHotLabels  -- 1データのみ
+    -- loss <- predict device model ([Word1], QT.Var) oneHotLabels
     let lossValue = (asValue loss) :: Float
     print $ "lossValue " ++ show lossValue
     showLoss 5 epoc lossValue
@@ -161,17 +174,16 @@ main = do
     print $ "u " ++ show u  -- NaNが含まれている
     return (u, lossValue)
   -- 複数データ
-  -- ((trainedModel), losses) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-  --   initRandamTrainData <- shuffleM trainData
-  --   flip fix (0, model, initRandamTrainData, 0) $ \loop (i, mdl, data_list, lastLossValue) -> do
+  -- ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
+  --   flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, lastLossValue) -> do
   --     -- if i < length trainData then do
-  --     --   loss <- predict device model (trainData !! i) oneHotTokens oneHotLabels  -- 1データのみ
+  --     --   loss <- predict device model (trainData !! i)  oneHotLabels  -- 1データのみ
   --     if length data_list > 0 then do
   --       let (oneData, restDataList) = splitAt 1 data_list
   --       print $ "oneData" ++ show oneData
   --       print $ "restDataList" ++ show (length restDataList)
-  --       loss <- predict device mdl (head oneData) oneHotTokens oneHotLabels
-  --       -- loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
+  --       loss <- predict device mdl (head oneData) oneHotLabels
+  --       -- loss <- predict device model ([Word1, Word2], QT.Var) oneHotLabels
   --       let lossValue = (asValue loss) :: Float
   --       print $ "lossValue " ++ show lossValue
   --       showLoss 5 epoc lossValue
@@ -180,9 +192,53 @@ main = do
   --       print $ "u " ++ show u  -- NaNが含まれている
   --       let (newModel, _) = u
   --       loop (i + 1, newModel, restDataList, lossValue)
-  --     else return (mdl, lastLossValue)
+  --     else do
+  --       validLosses <- forM validData $ \dataPoint -> do
+  --         loss <- predict device model dataPoint oneHotLabels
+  --         let lossValue = (asValue loss) :: Float
+  --         print $ "validation lossValue " ++ show lossValue
+  --         return lossValue
+
+  --       let avgValidLoss = sum validLosses / fromIntegral (length validLosses)
+  --       print $ "Average validation loss: " ++ show avgValidLoss
+
+  --       return (mdl, (lastLossValue, avgValidLoss))
   --   -- return (u, lossValue)
 
+  -- let (losses, validLosses) = unzip lossesPair
   print $ "losses " ++ show losses
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName "Learning Curve" [("", reverse losses)]
+  -- drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
+
+
+  -- -- TODO: testデータで評価
+  -- -- testLosses <- forM testData $ \dataPoint -> do
+  -- (testLosses, isCorrects) <- unzip <$> forM testData $ \dataPoint -> do
+  --   (loss, isCorrect) <- predict device trainedModel dataPoint  oneHotLabels
+  --   let lossValue = (asValue loss) :: Float
+  --   print $ "test lossValue " ++ show lossValue
+  --   return (lossValue, isCorrect)
+
+    -- TODO: testデータで評価
+  -- testLosses <- forM testData $ \dataPoint -> do
+  -- (testLosses, isCorrects) <- unzip <$> forM testData (\dataPoint -> do
+  --   (loss, isCorrect) <- predict device trainedModel dataPoint oneHotLabels
+  --   let lossValue = (asValue loss) :: Float
+  --   print $ "test lossValue " ++ show lossValue
+  --   return (lossValue, isCorrect))
+
+    -- validLosses <- forM validData $ \dataPoint -> do
+    --   loss <- predict device model dataPoint oneHotLabels
+    --   let lossValue = (asValue loss) :: Float
+    --   print $ "validation lossValue " ++ show lossValue
+    --   return lossValue
+    
+  isCorrects <- forM testData $ \dataPoint -> do
+    (_, isCorrect) <- predict device trainedModel dataPoint oneHotLabels
+    return isCorrect
+
+  print $ "isCorrects " ++ show isCorrects
+
+  let accuracy = fromIntegral (length (filter id isCorrects)) / fromIntegral (length isCorrects)
+  print $ "Accuracy: " ++ show accuracy
