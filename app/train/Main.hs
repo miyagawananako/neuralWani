@@ -74,24 +74,25 @@ instance Randomizable HypParams Params where
       <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> IO Tensor
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> IO (Tensor, (Tensor, Tensor))
 forward device model dataset oneHotTokens = do
   let input_original = map oneHotTokens $ fst dataset
   let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device w)) $ input_original
   let lstm = lstmLayers (lstmParams model)
   let dropout_prob = Nothing
-  let (lstmOutput, (_, _)) = lstm dropout_prob (h0c0 model) $ (stack (Dim 0) input)
+  print $ "h0c0 model " ++ show (h0c0 model)
+  let (lstmOutput, newState) = lstm dropout_prob (h0c0 model) $ (stack (Dim 0) input)
   print $ "lstmOutput " ++ show lstmOutput
-  pure lstmOutput
+  pure (lstmOutput, newState)
 
-predict :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool)
+predict :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, (Tensor, Tensor))
 predict device model dataset oneHotTokens oneHotLabels = do
   let groundTruth = asTensor'' device (oneHotLabels $ snd dataset)
   let groundTruth' = argmax (Dim 0) KeepDim groundTruth
   -- let groundTruth' = case shape groundTruth of
   --       [n] -> reshape [1, n] groundTruth
   --       _   -> error $ "Unexpected shape: " ++ show (shape groundTruth)
-  lstmOutput <- forward device model dataset oneHotTokens
+  (lstmOutput, newState) <- forward device model dataset oneHotTokens
   let mlp = linearLayer (mlpParams model)
   let output = mlp $ lstmOutput
   let shapeOutput = shape output
@@ -111,7 +112,7 @@ predict device model dataset oneHotTokens oneHotLabels = do
   let loss = nllLoss' groundTruth' output'
   let classLabels = argmax (Dim 0) KeepDim y'
   let isCorrect = groundTruth' == classLabels
-  pure (loss, isCorrect)
+  pure (loss, isCorrect, newState)
 
 main :: IO()
 main = do
@@ -146,61 +147,65 @@ main = do
       proj_size = Nothing
       (oneHotLabels, numOfRules) = oneHotFactory labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = 1e-3 :: Tensor
+      learningRate = 1e-5 :: Tensor
       graphFileName = "graph-seq-class.png"
       modelFileName = "seq-class.model"
   initModel <- sample hyperParams
   print $ "initModel " ++ show initModel
-  ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
-    (loss, _) <- predict device model (trainData !! 0) oneHotTokens oneHotLabels  -- 1データのみ
-    -- loss <- predict device model ([Word1], QT.Var) oneHotTokens oneHotLabels
-    let lossValue = (asValue loss) :: Float
-    print $ "lossValue " ++ show lossValue
-    showLoss 5 epoc lossValue
-    print $ "loss " ++ show loss  -- Tensor Float []  8.1535
-    u <- update model opt loss learningRate
-    print $ "u " ++ show u  -- NaNが含まれている
-    return (u, lossValue)
+  -- ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
+  --   (loss, _) <- predict device model (trainData !! 0) oneHotTokens oneHotLabels  -- 1データのみ
+  --   -- loss <- predict device model ([Word1], QT.Var) oneHotTokens oneHotLabels
+  --   let lossValue = (asValue loss) :: Float
+  --   print $ "lossValue " ++ show lossValue
+  --   showLoss 5 epoc lossValue
+  --   print $ "loss " ++ show loss  -- Tensor Float []  8.1535
+  --   u <- update model opt loss learningRate
+  --   print $ "u " ++ show u  -- NaNが含まれている
+  --   return (u, lossValue)
   -- 複数データ
-  -- ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-  --   flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, lastLossValue) -> do
-  --     -- if i < length trainData then do
-  --     --   loss <- predict device model (trainData !! i) oneHotTokens oneHotLabels  -- 1データのみ
-  --     if length data_list > 0 then do
-  --       let (oneData, restDataList) = splitAt 1 data_list
-  --       print $ "oneData" ++ show oneData
-  --       print $ "restDataList" ++ show (length restDataList)
-  --       loss <- predict device mdl (head oneData) oneHotTokens oneHotLabels
-  --       -- loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
-  --       let lossValue = (asValue loss) :: Float
-  --       print $ "lossValue " ++ show lossValue
-  --       showLoss 5 epoc lossValue
-  --       print $ "loss " ++ show loss  -- Tensor Float []  8.1535  -- 最終的にはここがNaNになって止まる
-  --       u <- update model GD loss learningRate
-  --       print $ "u " ++ show u  -- NaNが含まれている
-  --       let (newModel, _) = u
-  --       loop (i + 1, newModel, restDataList, lossValue)
-  --     else do
-  --       validLosses <- forM validData $ \dataPoint -> do
-  --         loss <- predict device model dataPoint oneHotTokens oneHotLabels
-  --         let lossValue = (asValue loss) :: Float
-  --         print $ "validation lossValue " ++ show lossValue
-  --         return lossValue
+  ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
+    flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, lastLossValue) -> do  -- TODO: lastLossValueではなく平均を用いる
+      -- if i < length trainData then do
+      --   loss <- predict device model (trainData !! i) oneHotTokens oneHotLabels  -- 1データのみ
+      if length data_list > 0 then do
+        let (oneData, restDataList) = splitAt 1 data_list
+        print $ "oneData" ++ show oneData
+        print $ "restDataList" ++ show (length restDataList)
+        (loss, _, newState) <- predict device mdl (head oneData) oneHotTokens oneHotLabels
+        -- loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
+        let lossValue = (asValue loss) :: Float
+        -- print $ "lossValue " ++ show lossValue
+        -- showLoss 5 epoc lossValue
+        print $ "loss " ++ show loss  -- Tensor Float []  8.1535
+        let model' = mdl { h0c0 = newState }
+        u <- update model' GD loss learningRate
+        -- print $ "u " ++ show u  
+        let (newModel, _) = u
+        -- let updatedModel = newModel { h0c0 = newState }
+        loop (i + 1, newModel, restDataList, lossValue)
+      else do
+        validLosses <- forM validData $ \dataPoint -> do
+          (loss, _, _) <- predict device model dataPoint oneHotTokens oneHotLabels
+          let lossValue = (asValue loss) :: Float
+          print $ "validation lossValue " ++ show lossValue
+          return lossValue
 
-  --       let avgValidLoss = sum validLosses / fromIntegral (length validLosses)
-  --       print $ "Average validation loss: " ++ show avgValidLoss
+        -- let avgTrainLoss = 
 
-  --       return (mdl, (lastLossValue, avgValidLoss))
-  --   -- return (u, lossValue)
+        let avgValidLoss = sum validLosses / fromIntegral (length validLosses)
+        print $ "Average validation loss: " ++ show avgValidLoss
 
-  -- let (losses, validLosses) = unzip lossesPair
+        return (mdl, (lastLossValue, avgValidLoss))
+    -- return (u, lossValue)
+
+  let (losses, validLosses) = unzip lossesPair
   print $ "losses " ++ show losses
   saveParams trainedModel modelFileName
-  drawLearningCurve graphFileName "Learning Curve" [("", reverse losses)]
-  -- drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
+  -- drawLearningCurve graphFileName "Learning Curve" [("", reverse losses)]
+  drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
     
   isCorrects <- forM testData $ \dataPoint -> do
-    (_, isCorrect) <- predict device trainedModel dataPoint oneHotTokens oneHotLabels
+    (_, isCorrect, _) <- predict device trainedModel dataPoint oneHotTokens oneHotLabels
     return isCorrect
 
   print $ "isCorrects " ++ show isCorrects
