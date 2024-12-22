@@ -129,7 +129,7 @@ main = do
   let ruleList = map (\(_, rule) -> rule) dataset
   -- print ruleList
 
-  let allData = zip constructorData ruleList
+  allData <- shuffleM $ zip constructorData ruleList
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
   let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
@@ -161,8 +161,7 @@ main = do
     return (u, lossValue)
   -- 複数データ
   -- ((trainedModel), losses) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-  --   initRandamTrainData <- shuffleM trainData
-  --   flip fix (0, model, initRandamTrainData, 0) $ \loop (i, mdl, data_list, lastLossValue) -> do
+  --   flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, lastLossValue) -> do
   --     -- if i < length trainData then do
   --     --   loss <- predict device model (trainData !! i) oneHotTokens oneHotLabels  -- 1データのみ
   --     if length data_list > 0 then do
