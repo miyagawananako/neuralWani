@@ -80,9 +80,9 @@ forward device model dataset oneHotTokens = do
   let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device w)) $ input_original
   let lstm = lstmLayers (lstmParams model)
   let dropout_prob = Nothing
-  print $ "h0c0 model " ++ show (h0c0 model)
+  -- print $ "h0c0 model " ++ show (h0c0 model)
   let (lstmOutput, newState) = lstm dropout_prob (h0c0 model) $ (stack (Dim 0) input)
-  print $ "lstmOutput " ++ show lstmOutput
+  -- print $ "lstmOutput " ++ show lstmOutput
   pure (lstmOutput, newState)
 
 predict :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, (Tensor, Tensor))
@@ -96,19 +96,19 @@ predict device model dataset oneHotTokens oneHotLabels = do
   let mlp = linearLayer (mlpParams model)
   let output = mlp $ lstmOutput
   let shapeOutput = shape output
-  print $ "shapeOutput " ++ show shapeOutput
+  -- print $ "shapeOutput " ++ show shapeOutput
   let y' = case shapeOutput of
         [1, n] -> softmax (Dim 0) (reshape [n] output)
         [_, n] -> softmax (Dim 0) (reshape [n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
         _      -> error $ "Unexpected shape: " ++ show shapeOutput
-  print $ "y' " ++ show y'
+  -- print $ "y' " ++ show y'
   let output' = case shapeOutput of
         [1, n] -> logSoftmax (Dim 1) (reshape [1, n] output)
         [_, n] -> logSoftmax (Dim 1) (reshape [1, n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
         _      -> error $ "Unexpected shape: " ++ show shapeOutput
   -- let output' = logSoftmax (Dim 1) output  -- (バッチサイズ, クラス数)になるようにする
-  print $ "groundTruth " ++ show groundTruth'
-  print $ "output' " ++ show output'
+  -- print $ "groundTruth " ++ show groundTruth'
+  -- print $ "output' " ++ show output'
   let loss = nllLoss' groundTruth' output'
   let classLabels = argmax (Dim 0) KeepDim y'
   let isCorrect = groundTruth' == classLabels
@@ -164,42 +164,42 @@ main = do
   --   return (u, lossValue)
   -- 複数データ
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-    flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, lastLossValue) -> do  -- TODO: lastLossValueではなく平均を用いる
+    flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, sumLossValue) -> do
       -- if i < length trainData then do
       --   loss <- predict device model (trainData !! i) oneHotTokens oneHotLabels  -- 1データのみ
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
-        print $ "oneData" ++ show oneData
-        print $ "restDataList" ++ show (length restDataList)
+        -- print $ "oneData" ++ show oneData
+        -- print $ "restDataList" ++ show (length restDataList)
         (loss, _, newState) <- predict device mdl (head oneData) oneHotTokens oneHotLabels
         -- loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
         let lossValue = (asValue loss) :: Float
         -- print $ "lossValue " ++ show lossValue
         -- showLoss 5 epoc lossValue
-        print $ "loss " ++ show loss  -- Tensor Float []  8.1535
+        print $ "epoch " ++ show epoc  ++ " i " ++ show i ++ " loss " ++ show loss  -- Tensor Float []  8.1535
         let model' = mdl { h0c0 = newState }
         u <- update model' GD loss learningRate
         -- print $ "u " ++ show u  
         let (newModel, _) = u
         -- let updatedModel = newModel { h0c0 = newState }
-        loop (i + 1, newModel, restDataList, lossValue)
+        loop (i + 1, newModel, restDataList, sumLossValue + lossValue)
       else do
         validLosses <- forM validData $ \dataPoint -> do
           (loss, _, _) <- predict device model dataPoint oneHotTokens oneHotLabels
           let lossValue = (asValue loss) :: Float
-          print $ "validation lossValue " ++ show lossValue
+          -- print $ "validation lossValue " ++ show lossValue
           return lossValue
 
-        -- let avgTrainLoss = 
+        let avgTrainLoss = sumLossValue / fromIntegral (length trainData)
 
         let avgValidLoss = sum validLosses / fromIntegral (length validLosses)
-        print $ "Average validation loss: " ++ show avgValidLoss
+        -- print $ "Average validation loss: " ++ show avgValidLoss
 
-        return (mdl, (lastLossValue, avgValidLoss))
+        return (mdl, (avgTrainLoss, avgValidLoss))
     -- return (u, lossValue)
 
   let (losses, validLosses) = unzip lossesPair
-  print $ "losses " ++ show losses
+  -- print $ "losses " ++ show losses
   saveParams trainedModel modelFileName
   -- drawLearningCurve graphFileName "Learning Curve" [("", reverse losses)]
   drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
