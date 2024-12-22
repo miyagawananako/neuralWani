@@ -4,7 +4,7 @@
 
 import GHC.Generics                   --base
 import qualified DTS.QueryTypes as QT
-import Control.Monad (forM_)
+import Control.Monad (forM_, forM)
 import Data.Function(fix)
 import System.Random.Shuffle (shuffleM)
 import Data.Maybe
@@ -149,38 +149,50 @@ main = do
       modelFileName = "seq-class.model"
   initModel <- sample hyperParams
   print $ "initModel " ++ show initModel
-  ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
-    loss <- predict device model (trainData !! 0) oneHotTokens oneHotLabels  -- 1データのみ
-    -- loss <- predict device model ([Word1], QT.Var) oneHotTokens oneHotLabels
-    let lossValue = (asValue loss) :: Float
-    print $ "lossValue " ++ show lossValue
-    showLoss 5 epoc lossValue
-    print $ "loss " ++ show loss  -- Tensor Float []  8.1535
-    u <- update model opt loss learningRate
-    print $ "u " ++ show u  -- NaNが含まれている
-    return (u, lossValue)
+  -- ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
+  --   loss <- predict device model (trainData !! 0) oneHotTokens oneHotLabels  -- 1データのみ
+  --   -- loss <- predict device model ([Word1], QT.Var) oneHotTokens oneHotLabels
+  --   let lossValue = (asValue loss) :: Float
+  --   print $ "lossValue " ++ show lossValue
+  --   showLoss 5 epoc lossValue
+  --   print $ "loss " ++ show loss  -- Tensor Float []  8.1535
+  --   u <- update model opt loss learningRate
+  --   print $ "u " ++ show u  -- NaNが含まれている
+  --   return (u, lossValue)
   -- 複数データ
-  -- ((trainedModel), losses) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-  --   flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, lastLossValue) -> do
-  --     -- if i < length trainData then do
-  --     --   loss <- predict device model (trainData !! i) oneHotTokens oneHotLabels  -- 1データのみ
-  --     if length data_list > 0 then do
-  --       let (oneData, restDataList) = splitAt 1 data_list
-  --       print $ "oneData" ++ show oneData
-  --       print $ "restDataList" ++ show (length restDataList)
-  --       loss <- predict device mdl (head oneData) oneHotTokens oneHotLabels
-  --       -- loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
-  --       let lossValue = (asValue loss) :: Float
-  --       print $ "lossValue " ++ show lossValue
-  --       showLoss 5 epoc lossValue
-  --       print $ "loss " ++ show loss  -- Tensor Float []  8.1535  -- 最終的にはここがNaNになって止まる
-  --       u <- update model GD loss learningRate
-  --       print $ "u " ++ show u  -- NaNが含まれている
-  --       let (newModel, _) = u
-  --       loop (i + 1, newModel, restDataList, lossValue)
-  --     else return (mdl, lastLossValue)
-  --   -- return (u, lossValue)
+  ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
+    flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, lastLossValue) -> do
+      -- if i < length trainData then do
+      --   loss <- predict device model (trainData !! i) oneHotTokens oneHotLabels  -- 1データのみ
+      if length data_list > 0 then do
+        let (oneData, restDataList) = splitAt 1 data_list
+        print $ "oneData" ++ show oneData
+        print $ "restDataList" ++ show (length restDataList)
+        loss <- predict device mdl (head oneData) oneHotTokens oneHotLabels
+        -- loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
+        let lossValue = (asValue loss) :: Float
+        print $ "lossValue " ++ show lossValue
+        showLoss 5 epoc lossValue
+        print $ "loss " ++ show loss  -- Tensor Float []  8.1535  -- 最終的にはここがNaNになって止まる
+        u <- update model GD loss learningRate
+        print $ "u " ++ show u  -- NaNが含まれている
+        let (newModel, _) = u
+        loop (i + 1, newModel, restDataList, lossValue)
+      else do
+        validLosses <- forM validData $ \dataPoint -> do
+          loss <- predict device model dataPoint oneHotTokens oneHotLabels
+          let lossValue = (asValue loss) :: Float
+          print $ "validation lossValue " ++ show lossValue
+          return lossValue
 
+        let avgValidLoss = sum validLosses / fromIntegral (length validLosses)
+        print $ "Average validation loss: " ++ show avgValidLoss
+
+        return (mdl, (lastLossValue, avgValidLoss))
+    -- return (u, lossValue)
+
+  let (losses, validLosses) = unzip lossesPair
   print $ "losses " ++ show losses
   saveParams trainedModel modelFileName
-  drawLearningCurve graphFileName "Learning Curve" [("", reverse losses)]
+  -- drawLearningCurve graphFileName "Learning Curve" [("", reverse losses)]
+  drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
