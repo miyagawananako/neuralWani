@@ -11,7 +11,7 @@ import Data.Maybe
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, asTensor', sliceDim)
 import Torch.Device       (Device(..),DeviceType(..))
-import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack, embedding')
+import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack, embedding', logSoftmax)
 import Torch.NN           (Parameter,Parameterized,Randomizable,sample)
 import Torch.Autograd     (IndependentTensor(..),makeIndependent)
 import Torch.Optim        (GD(..))
@@ -72,7 +72,7 @@ instance Randomizable HypParams Params where
       <$> sample (LstmHypParams dev bi_directional input_size hidden_size num_layers has_bias proj_size)
       <*> (makeIndependent =<< randnIO' dev [input_size, vocab_size])
       <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
-      <*> pure (randomTensor1, randomTensor2)
+      <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
 forward :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> IO Tensor
 forward device model dataset oneHotTokens = do
@@ -81,20 +81,34 @@ forward device model dataset oneHotTokens = do
   let lstm = lstmLayers (lstmParams model)
   let dropout_prob = Nothing
   let (lstmOutput, (_, _)) = lstm dropout_prob (h0c0 model) $ (stack (Dim 0) input)
+  print $ "lstmOutput " ++ show lstmOutput
   pure lstmOutput
 
 predict :: Device -> Params -> ([Token], QT.DTTrule) -> (Token -> [Float]) -> (QT.DTTrule -> [Float]) -> IO Tensor
 predict device model dataset oneHotTokens oneHotLabels = do
   let groundTruth = asTensor'' device (oneHotLabels $ snd dataset)
+  let groundTruth' = argmax (Dim 0) KeepDim groundTruth
+  -- let groundTruth' = case shape groundTruth of
+  --       [n] -> reshape [1, n] groundTruth
+  --       _   -> error $ "Unexpected shape: " ++ show (shape groundTruth)
   lstmOutput <- forward device model dataset oneHotTokens
   let mlp = linearLayer (mlpParams model)
   let output = mlp $ lstmOutput
   let shapeOutput = shape output
+  print $ "shapeOutput " ++ show shapeOutput
+  -- let output' = case shapeOutput of
+  --       [1, n] -> softmax (Dim 0) (reshape [n] output)
+  --       [_, n] -> softmax (Dim 0) (reshape [n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
+  --       _      -> error $ "Unexpected shape: " ++ show shapeOutput
+  -- let loss = binaryCrossEntropyLoss' groundTruth output'
   let output' = case shapeOutput of
-        [1, n] -> softmax (Dim 0) (reshape [n] output)
-        [_, n] -> softmax (Dim 0) (reshape [n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
+        [1, n] -> logSoftmax (Dim 1) (reshape [1, n] output)
+        [_, n] -> logSoftmax (Dim 1) (reshape [1, n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
         _      -> error $ "Unexpected shape: " ++ show shapeOutput
-  let loss = binaryCrossEntropyLoss' output' groundTruth
+  -- let output' = logSoftmax (Dim 1) output  -- (バッチサイズ, クラス数)になるようにする
+  print $ "groundTruth " ++ show groundTruth'
+  print $ "output' " ++ show output'
+  let loss = nllLoss' groundTruth' output'
   pure loss
 
 main :: IO()
@@ -115,16 +129,17 @@ main = do
   let ruleList = map (\(_, rule) -> rule) dataset
   -- print ruleList
 
+  -- TODO: データセットをtrain, validation, testに分割する
   let trainData = zip constructorData ruleList
-  print $ length trainData
+  -- print $ length trainData
 
-  print $ length labels + 1
-  print $ length tokens + 1
+  -- print $ length labels + 1
+  -- print $ length tokens + 1
 
-  print $ head trainData
+  -- print $ head trainData
   -- ([Word1,COMMA,Type',EOPre,EOPair,EOSig,Word1,EOPre,EOCon,Var'0,EOPre,EOTerm,Word1,EOPre,EOTyp],Var)
 
-  let iter = 1 :: Int
+  let iter = 10 :: Int
       device = Device CPU 0
       biDirectional = False
       input_size = 2
@@ -135,14 +150,14 @@ main = do
       proj_size = Nothing
       (oneHotLabels, numOfRules) = oneHotFactory labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = 4e-10 :: Tensor
+      learningRate = 1e-3 :: Tensor
       graphFileName = "graph-seq-class.png"
       modelFileName = "seq-class.model"
   initModel <- sample hyperParams
-  -- print initModel
+  print $ "initModel " ++ show initModel
   ((trainedModel, _), losses) <- mapAccumM [1..iter] (initModel, GD) $ \epoc (model, opt) -> do
-    -- loss <- predict device model (trainData !! 0) oneHotTokens oneHotLabels  -- 1データのみ
-    loss <- predict device model ([Word1, Word2], QT.Var) oneHotTokens oneHotLabels
+    loss <- predict device model (trainData !! 0) oneHotTokens oneHotLabels  -- 1データのみ
+    -- loss <- predict device model ([Word1], QT.Var) oneHotTokens oneHotLabels
     let lossValue = (asValue loss) :: Float
     print $ "lossValue " ++ show lossValue
     showLoss 5 epoc lossValue
