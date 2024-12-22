@@ -200,29 +200,6 @@ main = do
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName "Learning Curve" [("", reverse losses)]
   -- drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
-
-
-  -- -- TODO: testデータで評価
-  -- -- testLosses <- forM testData $ \dataPoint -> do
-  -- (testLosses, isCorrects) <- unzip <$> forM testData $ \dataPoint -> do
-  --   (loss, isCorrect) <- predict device trainedModel dataPoint oneHotTokens oneHotLabels
-  --   let lossValue = (asValue loss) :: Float
-  --   print $ "test lossValue " ++ show lossValue
-  --   return (lossValue, isCorrect)
-
-    -- TODO: testデータで評価
-  -- testLosses <- forM testData $ \dataPoint -> do
-  -- (testLosses, isCorrects) <- unzip <$> forM testData (\dataPoint -> do
-  --   (loss, isCorrect) <- predict device trainedModel dataPoint oneHotTokens oneHotLabels
-  --   let lossValue = (asValue loss) :: Float
-  --   print $ "test lossValue " ++ show lossValue
-  --   return (lossValue, isCorrect))
-
-    -- validLosses <- forM validData $ \dataPoint -> do
-    --   loss <- predict device model dataPoint oneHotTokens oneHotLabels
-    --   let lossValue = (asValue loss) :: Float
-    --   print $ "validation lossValue " ++ show lossValue
-    --   return lossValue
     
   isCorrects <- forM testData $ \dataPoint -> do
     (_, isCorrect) <- predict device trainedModel dataPoint oneHotTokens oneHotLabels
