@@ -31,6 +31,7 @@ dependencies:
 - text
 - containers
 - nlp-tools
+- random-shuffle
 
 ghc-options:
 - -Wall
