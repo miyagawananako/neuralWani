@@ -130,15 +130,9 @@ main = do
   let ruleList = map (\(_, rule) -> rule) dataset
   -- print ruleList
 
-  -- TODO: データセットをtrain, validation, testに分割する
-  let trainData = zip constructorData ruleList
-  -- print $ length trainData
-
-  -- print $ length labels + 1
-  -- print $ length tokens + 1
-
-  -- print $ head trainData
-  -- ([Word1,COMMA,Type',EOPre,EOPair,EOSig,Word1,EOPre,EOCon,Var'0,EOPre,EOTerm,Word1,EOPre,EOTyp],Var)
+  let allData = zip constructorData ruleList
+  let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
+  let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
   -- input_sizeとwemb_dimが同じなのはいいのか
   let iter = 1 :: Int
