@@ -3,10 +3,14 @@
 {-# LANGUAGE RecordWildCards #-}
 
 import GHC.Generics                   --base
-import qualified DTS.QueryTypes as QT
 import Control.Monad (forM)
 import Data.Function(fix)
 import System.Random.Shuffle (shuffleM)
+import qualified Data.Text as T       --text
+import qualified Data.Text.IO as T    --text
+import qualified Data.Serialize.Text as T --cereal-text
+import qualified Data.List as L       --base
+import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim)
 import Torch.Device       (Device(..),DeviceType(..))
@@ -80,7 +84,7 @@ forward model dataset = do
       (lstmOutput, newState) = lstm dropout_prob (h0c0 model) $ input
   pure (lstmOutput, newState)
 
-predict :: Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, (Tensor, Tensor))
+predict :: Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor, (Tensor, Tensor))
 predict model dataset oneHotLabels = do
   let groundTruth = asTensor (oneHotLabels $ snd dataset)
   let groundTruth' = argmax (Dim 0) KeepDim groundTruth
@@ -99,7 +103,9 @@ predict model dataset oneHotLabels = do
   let loss = nllLoss' groundTruth' output'
   let classLabels = argmax (Dim 0) KeepDim y'
   let isCorrect = groundTruth' == classLabels
-  pure (loss, isCorrect, newState)
+  print $ "groundTruth " ++ show (snd dataset)
+  print $ "groundTruth " ++ show groundTruth' ++ " classLabels " ++ show classLabels
+  pure (loss, isCorrect, y', newState)
 
 main :: IO()
 main = do
@@ -135,7 +141,7 @@ main = do
     flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, sumLossValue) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
-        (loss, _, newState) <- predict mdl (head oneData) oneHotLabels
+        (loss, _, _, newState) <- predict mdl (head oneData) oneHotLabels
         let lossValue = (asValue loss) :: Float
         print $ "epoch " ++ show epoc  ++ " i " ++ show i ++ " loss " ++ show loss
         let model' = mdl { h0c0 = newState }
@@ -144,7 +150,7 @@ main = do
         loop (i + 1, newModel, restDataList, sumLossValue + lossValue)
       else do
         validLosses <- forM validData $ \dataPoint -> do
-          (loss, _, _) <- predict model dataPoint oneHotLabels
+          (loss, _, _, _) <- predict model dataPoint oneHotLabels
           let lossValue = (asValue loss) :: Float
           return lossValue
 
@@ -157,9 +163,17 @@ main = do
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
 
-  isCorrects <- forM testData $ \dataPoint -> do
-    (_, isCorrect, _) <- predict trainedModel dataPoint oneHotLabels
-    return isCorrect
+  pairs <- forM testData $ \dataPoint -> do
+    (_, isCorrect, y, _) <- predict trainedModel dataPoint oneHotLabels
+    let index = (asValue $ argmax (Dim 0) KeepDim y) - 1
+    let label = toEnum index :: QT.DTTrule
+    return (isCorrect, label)
+
+  let (isCorrects, ans) = unzip pairs
+
+  print $ zip (snd $ unzip $ testData) ans
+
+  -- T.putStr $ showClassificationReport $ zip (snd $ unzip $ testData) ans
 
   print $ "isCorrects " ++ show isCorrects
 

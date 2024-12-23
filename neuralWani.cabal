@@ -36,6 +36,7 @@ library
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , cereal-text
     , containers
     , hasktorch >=0.2
     , hasktorch-tools
@@ -60,6 +61,7 @@ executable preprocess-exe
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , cereal-text
     , containers
     , hasktorch >=0.2
     , hasktorch-tools
@@ -85,6 +87,7 @@ executable train-exe
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , cereal-text
     , containers
     , hasktorch >=0.2
     , hasktorch-tools
@@ -111,6 +114,7 @@ test-suite test
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , cereal-text
     , containers
     , hasktorch >=0.2
     , hasktorch-tools
