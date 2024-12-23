@@ -79,11 +79,10 @@ forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO (Tensor, (Tensor, Ten
 forward device model dataset = do
   -- let input_original = map oneHotTokens $ fst dataset
   -- let input = map (\w -> (toDependent $ w_emb model) `matmul` (asTensor'' device w)) $ input_original
-  let inputIndices = map fromEnum $ fst dataset
-  print inputIndices
-  let idxs = asTensor'' device (map fromIntegral inputIndices :: [Int])
-  print idxs
-  let input = embedding' (toDependent $ w_emb model) idxs
+  let inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
+  let idxs = asTensor (inputIndices :: [Int])
+  -- print idxs
+  let input = embedding' (transpose2D $ toDependent (w_emb model)) idxs
   print input
   let lstm = lstmLayers (lstmParams model)
   let dropout_prob = Nothing
@@ -147,14 +146,13 @@ main = do
 
   -- input_sizeとwemb_dimが同じなのはいいのか
   let iter = 1 :: Int
-      device = Device CUDA 0
+      device = Device CPU 0
       biDirectional = False
       input_size = 2
       numOfLayers = 1
       hiddenSize = 7
       has_bias = False
-      -- (oneHotTokens, vocabSize) = oneHotFactory tokens  -- TODO: embedding'を使う
-      vocabSize = length tokens
+      vocabSize = length tokens -- TODO: あっているのか確認する
       proj_size = Nothing
       (oneHotLabels, numOfRules) = oneHotFactory labels
       -- numOfRules = length labels
@@ -184,7 +182,7 @@ main = do
         -- print $ "oneData" ++ show oneData
         -- print $ "restDataList" ++ show (length restDataList)
         (loss, _, newState) <- predict device mdl (head oneData) oneHotLabels
-        -- loss <- predict device model ([Word1, Word2], QT.Var) oneHotLabels
+        -- (loss, _, newState) <- predict device mdl ([Word1, Word2], QT.Var) oneHotLabels
         let lossValue = (asValue loss) :: Float
         -- print $ "lossValue " ++ show lossValue
         -- showLoss 5 epoc lossValue
