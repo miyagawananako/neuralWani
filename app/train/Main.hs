@@ -85,7 +85,7 @@ forward model dataset = do
 
 predict :: Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor, (Tensor, Tensor))
 predict model dataset oneHotLabels = do
-  let groundTruthOneHot = asTensor (oneHotLabels $ snd dataset)
+  let groundTruthOneHot = asTensor (tail $ oneHotLabels $ snd dataset)
       groundTruthIndex = argmax (Dim 0) KeepDim groundTruthOneHot
   (lstmOutput, newState) <- forward model dataset
   let output = linearLayer (mlpParams model) $ lstmOutput
@@ -129,7 +129,8 @@ main = do
       has_bias = False
       vocabSize = length tokens -- TODO: あっているのか確認する
       proj_size = Nothing
-      (oneHotLabels, numOfRules) = oneHotFactory labels
+      (oneHotLabels, _) = oneHotFactory labels
+      numOfRules = length labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-5 :: Tensor
       batchSize = 10
@@ -153,7 +154,7 @@ main = do
           loop (i + 1, model', restDataList, sumLossValue + lossValue, sumLoss)
       else do
         validLosses <- forM validData $ \dataPoint -> do
-          (loss, _, _, _) <- predict model dataPoint oneHotLabels
+          (loss, _, _, _) <- predict model dataPoint oneHotLabels --  使っているモデルが違う？かも
           let lossValue = (asValue loss) :: Float
           return lossValue
 
@@ -168,8 +169,10 @@ main = do
 
   pairs <- forM testData $ \dataPoint -> do
     (_, isCorrect, y, _) <- predict trainedModel dataPoint oneHotLabels
+    print $ "y " ++ show y
     let index = (asValue $ argmax (Dim 1) KeepDim y) - 1
-        label = toEnum index :: QT.DTTrule
+    print $ "index " ++ show index  -- -1になることがあるらしい（？）->oneHotの1つ目を予測してしまったケースが挙げられる
+    let label = toEnum index :: QT.DTTrule
     return (isCorrect, label)
 
   let (isCorrects, ans) = unzip pairs
