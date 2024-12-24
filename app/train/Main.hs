@@ -12,7 +12,7 @@ import qualified Data.Serialize.Text as T --cereal-text
 import qualified Data.List as L       --base
 import qualified DTS.QueryTypes as QT
 --hasktorch
-import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim)
+import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
 import Torch.Device       (Device(..),DeviceType(..))
 import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack, embedding', logSoftmax)
 import Torch.NN           (Parameter,Parameterized,Randomizable,sample)
@@ -20,7 +20,7 @@ import Torch.Autograd     (IndependentTensor(..),makeIndependent)
 import Torch.Optim        (GD(..))
 import Torch.Train        (update,showLoss,saveParams,loadParams)
 import Torch.Control      (mapAccumM)
-import Torch.Tensor.TensorFactories (randnIO')
+import Torch.Tensor.TensorFactories (randnIO', asTensor'')
 import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Util.Dict    (sortWords,oneHotFactory) --nlp-tools
@@ -73,28 +73,28 @@ instance Randomizable HypParams Params where
       <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
-forward :: Params -> ([Token], QT.DTTrule) -> IO (Tensor, (Tensor, Tensor))
-forward model dataset = do
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO (Tensor, (Tensor, Tensor))
+forward device model dataset = do
   let inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
       idxs = asTensor (inputIndices :: [Int])
-      input = embedding' (transpose2D $ toDependent (w_emb model)) idxs
+      toDeviceIdxs = toDevice device idxs
+      input = embedding' (transpose2D $ toDependent (w_emb model)) toDeviceIdxs
       dropout_prob = Nothing
       (lstmOutput, newState) = lstmLayers (lstmParams model) dropout_prob (h0c0 model) $ input
   pure (lstmOutput, newState)
 
-predict :: Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor, (Tensor, Tensor))
-predict model dataset oneHotLabels = do
-  let groundTruthOneHot = asTensor (tail $ oneHotLabels $ snd dataset)
+predict :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor, (Tensor, Tensor))
+predict device model dataset oneHotLabels = do
+  let groundTruthOneHot = asTensor'' device (tail $ oneHotLabels $ snd dataset)
       groundTruthIndex = argmax (Dim 0) KeepDim groundTruthOneHot
-  (lstmOutput, newState) <- forward model dataset
+  (lstmOutput, newState) <- forward device model dataset
   let output = linearLayer (mlpParams model) $ lstmOutput
   reshapedOutput <- reshapeTensor output
   let output' = logSoftmax (Dim 1) reshapedOutput
       loss = nllLoss' groundTruthIndex output'
-      predictedClassIndex = argmax (Dim 0) KeepDim reshapedOutput
+      predictedClassIndex = argmax (Dim 1) KeepDim reshapedOutput
       isCorrect = groundTruthIndex == predictedClassIndex
-      probabilities = softmax (Dim 1) reshapedOutput
-  pure (loss, isCorrect, probabilities, newState)
+  pure (loss, isCorrect, predictedClassIndex, newState)
 
 reshapeTensor :: Tensor -> IO Tensor
 reshapeTensor tensor = do
@@ -119,7 +119,7 @@ main = do
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
   let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
-  let iter = 3 :: Int
+  let iter = 1 :: Int
       device = Device CPU 0
       biDirectional = False
       input_size = 32
@@ -140,7 +140,7 @@ main = do
     flip fix (0 :: Int, model, trainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
-        (loss, _, _, newState) <- predict mdl (head oneData) oneHotLabels
+        (loss, _, _, newState) <- predict device mdl (head oneData) oneHotLabels
         let lossValue = (asValue loss) :: Float
         print $ "epoch " ++ show epoc  ++ " i " ++ show i ++ " loss " ++ show loss
         let model' = mdl { h0c0 = newState }
@@ -153,7 +153,7 @@ main = do
           loop (i + 1, model', restDataList, sumLossValue + lossValue, sumLoss)
       else do
         validLosses <- forM validData $ \dataPoint -> do
-          (loss, _, _, _) <- predict mdl dataPoint oneHotLabels
+          (loss, _, _, _) <- predict device mdl dataPoint oneHotLabels
           let lossValue = (asValue loss) :: Float
           return lossValue
 
@@ -167,9 +167,8 @@ main = do
   drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
-    (_, isCorrect, probabilities, _) <- predict trainedModel dataPoint oneHotLabels
-    let index = (asValue $ argmax (Dim 1) KeepDim probabilities) - 1
-    let label = toEnum index :: QT.DTTrule
+    (_, isCorrect, predictedClassIndex, _) <- predict device trainedModel dataPoint oneHotLabels
+    let label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
     return (isCorrect, label)
 
   let (isCorrects, ans) = unzip pairs
