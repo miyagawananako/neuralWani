@@ -120,7 +120,7 @@ main = do
   let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
   let iter = 1 :: Int
-      device = Device CPU 0
+      device = Device CUDA 0
       biDirectional = False
       input_size = 32
       numOfLayers = 1
