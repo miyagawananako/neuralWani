@@ -122,32 +122,37 @@ main = do
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
   let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
-  let iter = 1 :: Int
+  let iter = 3 :: Int
       device = Device CPU 0
       biDirectional = False
-      input_size = 2
+      input_size = 32
       numOfLayers = 1
-      hiddenSize = 7
+      hiddenSize = 128
       has_bias = False
       vocabSize = length tokens -- TODO: あっているのか確認する
       proj_size = Nothing
       (oneHotLabels, numOfRules) = oneHotFactory labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-5 :: Tensor
+      batchSize = 10
       graphFileName = "app/train/graph-seq-class.png"
       modelFileName = "app/train/seq-class.model"
   initModel <- sample hyperParams
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-    flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, sumLossValue) -> do
+    flip fix (0, model, trainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
         (loss, _, _, newState) <- predict mdl (head oneData) oneHotLabels
         let lossValue = (asValue loss) :: Float
         print $ "epoch " ++ show epoc  ++ " i " ++ show i ++ " loss " ++ show loss
         let model' = mdl { h0c0 = newState }
-        u <- update model' GD loss learningRate
-        let (newModel, _) = u
-        loop (i + 1, newModel, restDataList, sumLossValue + lossValue)
+        let sumLoss = currentSumLoss + loss  -- TODO: sum関数を用いる
+        if (i + 1) `mod` batchSize == 0 then do
+          u <- update model' GD sumLoss learningRate
+          let (newModel, _) = u
+          loop (i + 1, newModel, restDataList, sumLossValue + lossValue, 0)
+        else do
+          loop (i + 1, model', restDataList, sumLossValue + lossValue, sumLoss)
       else do
         validLosses <- forM validData $ \dataPoint -> do
           (loss, _, _, _) <- predict model dataPoint oneHotLabels
