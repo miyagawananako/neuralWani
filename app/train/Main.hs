@@ -120,14 +120,14 @@ main = do
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
   let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
-  let iter = 1 :: Int
+  let iter = 3 :: Int
       device = Device CPU 0
       biDirectional = False
       input_size = 32
       numOfLayers = 1
       hiddenSize = 128
       has_bias = False
-      vocabSize = length tokens -- TODO: あっているのか確認する
+      vocabSize = length tokens
       proj_size = Nothing
       (oneHotLabels, _) = oneHotFactory labels
       numOfRules = length labels
@@ -154,7 +154,7 @@ main = do
           loop (i + 1, model', restDataList, sumLossValue + lossValue, sumLoss)
       else do
         validLosses <- forM validData $ \dataPoint -> do
-          (loss, _, _, _) <- predict model dataPoint oneHotLabels --  使っているモデルが違う？かも
+          (loss, _, _, _) <- predict mdl dataPoint oneHotLabels
           let lossValue = (asValue loss) :: Float
           return lossValue
 
@@ -169,9 +169,7 @@ main = do
 
   pairs <- forM testData $ \dataPoint -> do
     (_, isCorrect, y, _) <- predict trainedModel dataPoint oneHotLabels
-    print $ "y " ++ show y
     let index = (asValue $ argmax (Dim 1) KeepDim y) - 1
-    print $ "index " ++ show index  -- -1になることがあるらしい（？）->oneHotの1つ目を予測してしまったケースが挙げられる
     let label = toEnum index :: QT.DTTrule
     return (isCorrect, label)
 
