@@ -31,7 +31,6 @@ import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, ge
 saveFilePath :: FilePath
 saveFilePath = "data/proofSearchResult"
 
--- TODO: minBoundを使えるようにlightblueをupdateする
 labels :: [QT.DTTrule]
 labels = [minBound..]
 -- labels = [QT.Var, QT.Con]
