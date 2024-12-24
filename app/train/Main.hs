@@ -89,23 +89,35 @@ predict model dataset oneHotLabels = do
   let groundTruth = asTensor (oneHotLabels $ snd dataset)
   let groundTruth' = argmax (Dim 0) KeepDim groundTruth
   (lstmOutput, newState) <- forward model dataset
-  let mlp = linearLayer (mlpParams model)
-  let output = mlp $ lstmOutput
-  let shapeOutput = shape output
-  let y' = case shapeOutput of
-        [1, n] -> softmax (Dim 0) (reshape [n] output)
-        [_, n] -> softmax (Dim 0) (reshape [n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
-        _      -> error $ "Unexpected shape: " ++ show shapeOutput
-  let output' = case shapeOutput of
-        [1, n] -> logSoftmax (Dim 1) (reshape [1, n] output)
-        [_, n] -> logSoftmax (Dim 1) (reshape [1, n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
-        _      -> error $ "Unexpected shape: " ++ show shapeOutput
+  -- let mlp = linearLayer (mlpParams model)
+  -- let output = mlp $ lstmOutput
+  let output = linearLayer (mlpParams model) $ lstmOutput
+  -- let shapeOutput = shape output
+  -- let y' = case shapeOutput of
+  --       [1, n] -> softmax (Dim 0) (reshape [n] output)
+  --       [_, n] -> softmax (Dim 0) (reshape [n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
+  --       _      -> error $ "Unexpected shape: " ++ show shapeOutput
+  -- let output' = case shapeOutput of
+  --       [1, n] -> logSoftmax (Dim 1) (reshape [1, n] output)
+  --       [_, n] -> logSoftmax (Dim 1) (reshape [1, n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
+  --       _      -> error $ "Unexpected shape: " ++ show shapeOutput
+  let reshapedOutput = reshapeTensor output
+  let output' = logSoftmax (Dim 1) reshapedOutput
   let loss = nllLoss' groundTruth' output'
-  let classLabels = argmax (Dim 0) KeepDim y'
-  let isCorrect = groundTruth' == classLabels
-  print $ "groundTruth " ++ show (snd dataset)
-  print $ "groundTruth " ++ show groundTruth' ++ " classLabels " ++ show classLabels
+  -- let classLabels = argmax (Dim 0) KeepDim y'
+  let predictedClass = argmax (Dim 0) KeepDim reshapedOutput
+  let isCorrect = groundTruth' == predictedClass
+  -- print $ "groundTruth " ++ show (snd dataset)
+  -- print $ "groundTruth " ++ show groundTruth' ++ " classLabels " ++ show classLabels
+  let y' = softmax (Dim 1) reshapedOutput -- Tensorの型をミスっている気がする
   pure (loss, isCorrect, y', newState)
+
+reshapeTensor :: Tensor -> Tensor
+reshapeTensor tensor = case shapeInput of
+  [1, n] -> reshape [1, n] tensor
+  [_, n] -> reshape [1, n] $ sliceDim 0 0 (length shapeInput) 1 tensor  -- TODO: 最後のTensorを獲得できているか確認する
+  _      -> error $ "Unexpected shape: " ++ show shapeInput
+    where shapeInput = shape tensor
 
 main :: IO()
 main = do
