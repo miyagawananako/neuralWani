@@ -94,8 +94,8 @@ predict model dataset oneHotLabels = do
       loss = nllLoss' groundTruthIndex output'
       predictedClassIndex = argmax (Dim 0) KeepDim reshapedOutput
       isCorrect = groundTruthIndex == predictedClassIndex
-      y' = softmax (Dim 1) reshapedOutput
-  pure (loss, isCorrect, y', newState)
+      probabilities = softmax (Dim 1) reshapedOutput
+  pure (loss, isCorrect, probabilities, newState)
 
 reshapeTensor :: Tensor -> IO Tensor
 reshapeTensor tensor = do
@@ -168,8 +168,8 @@ main = do
   drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
-    (_, isCorrect, y, _) <- predict trainedModel dataPoint oneHotLabels
-    let index = (asValue $ argmax (Dim 1) KeepDim y) - 1
+    (_, isCorrect, probabilities, _) <- predict trainedModel dataPoint oneHotLabels
+    let index = (asValue $ argmax (Dim 1) KeepDim probabilities) - 1
     let label = toEnum index :: QT.DTTrule
     return (isCorrect, label)
 
