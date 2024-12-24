@@ -20,6 +20,12 @@ import Data.List (sortOn)
 import Data.Ord (Down(..))
 import qualified Data.Set as Set
 
+isParen :: Bool
+isParen = False
+
+isSep :: Bool
+isSep = False
+
 loadActionsFromBinary :: FilePath -> IO [(U.Judgment, QT.DTTrule)]
 loadActionsFromBinary filepath = do
   binary <- B.readFile filepath
@@ -78,12 +84,6 @@ data Token =  FST | SND | COMMA | EOPair | EOPre | EOSig | EOCon | EOTerm | EOTy
             | Var'0 | Var'1 | Var'2 | Var'3 | Var'4 | Var'5 | Var'6 | Var'unknown
             | Type' | Kind' | Pi' | Lam' | App' | Not' | Sigma' | Pair' | Proj' | Disj' | Iota' | Unpack' | Bot' | Unit' | Top' | Entity' | Nat' | Zero' | Succ' | Natrec' | Eq' | Refl' | Idpeel'
   deriving (Enum, Show, Bounded, Eq, Ord)
-
-isParen :: Bool
-isParen = False
-
-isSep :: Bool
-isSep = False
 
 textToToken :: T.Text -> [T.Text] -> [Token]
 textToToken text frequentWords =

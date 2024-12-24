@@ -31,7 +31,6 @@ import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, ge
 saveFilePath :: FilePath
 saveFilePath = "data/proofSearchResult"
 
--- TODO: minBoundを使えるようにlightblueをupdateする
 labels :: [QT.DTTrule]
 labels = [minBound..]
 -- labels = [QT.Var, QT.Con]
@@ -79,33 +78,31 @@ forward model dataset = do
   let inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
       idxs = asTensor (inputIndices :: [Int])
       input = embedding' (transpose2D $ toDependent (w_emb model)) idxs
-      lstm = lstmLayers (lstmParams model)
       dropout_prob = Nothing
-      (lstmOutput, newState) = lstm dropout_prob (h0c0 model) $ input
+      (lstmOutput, newState) = lstmLayers (lstmParams model) dropout_prob (h0c0 model) $ input
   pure (lstmOutput, newState)
 
 predict :: Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor, (Tensor, Tensor))
 predict model dataset oneHotLabels = do
-  let groundTruth = asTensor (oneHotLabels $ snd dataset)
-  let groundTruth' = argmax (Dim 0) KeepDim groundTruth
+  let groundTruthOneHot = asTensor (tail $ oneHotLabels $ snd dataset)
+      groundTruthIndex = argmax (Dim 0) KeepDim groundTruthOneHot
   (lstmOutput, newState) <- forward model dataset
-  let mlp = linearLayer (mlpParams model)
-  let output = mlp $ lstmOutput
-  let shapeOutput = shape output
-  let y' = case shapeOutput of
-        [1, n] -> softmax (Dim 0) (reshape [n] output)
-        [_, n] -> softmax (Dim 0) (reshape [n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
-        _      -> error $ "Unexpected shape: " ++ show shapeOutput
-  let output' = case shapeOutput of
-        [1, n] -> logSoftmax (Dim 1) (reshape [1, n] output)
-        [_, n] -> logSoftmax (Dim 1) (reshape [1, n] $ sliceDim 0 (length shapeOutput - 1) (length shapeOutput) 1 output)
-        _      -> error $ "Unexpected shape: " ++ show shapeOutput
-  let loss = nllLoss' groundTruth' output'
-  let classLabels = argmax (Dim 0) KeepDim y'
-  let isCorrect = groundTruth' == classLabels
-  print $ "groundTruth " ++ show (snd dataset)
-  print $ "groundTruth " ++ show groundTruth' ++ " classLabels " ++ show classLabels
-  pure (loss, isCorrect, y', newState)
+  let output = linearLayer (mlpParams model) $ lstmOutput
+  reshapedOutput <- reshapeTensor output
+  let output' = logSoftmax (Dim 1) reshapedOutput
+      loss = nllLoss' groundTruthIndex output'
+      predictedClassIndex = argmax (Dim 0) KeepDim reshapedOutput
+      isCorrect = groundTruthIndex == predictedClassIndex
+      probabilities = softmax (Dim 1) reshapedOutput
+  pure (loss, isCorrect, probabilities, newState)
+
+reshapeTensor :: Tensor -> IO Tensor
+reshapeTensor tensor = do
+  let shapeInput = shape tensor
+  case shapeInput of
+    [1, n] -> return $ reshape [1, n] tensor
+    [_, n] -> return $ reshape [1, n] $ sliceDim 0 (length shapeInput - 1) (length shapeInput) 1 tensor
+    _      -> error $ "Unexpected shape: " ++ show shapeInput
 
 main :: IO()
 main = do
@@ -122,35 +119,41 @@ main = do
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
   let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
-  let iter = 1 :: Int
+  let iter = 3 :: Int
       device = Device CPU 0
       biDirectional = False
-      input_size = 2
+      input_size = 32
       numOfLayers = 1
-      hiddenSize = 7
+      hiddenSize = 128
       has_bias = False
-      vocabSize = length tokens -- TODO: あっているのか確認する
+      vocabSize = length tokens
       proj_size = Nothing
-      (oneHotLabels, numOfRules) = oneHotFactory labels
+      (oneHotLabels, _) = oneHotFactory labels
+      numOfRules = length labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-5 :: Tensor
+      batchSize = 10
       graphFileName = "app/train/graph-seq-class.png"
       modelFileName = "app/train/seq-class.model"
   initModel <- sample hyperParams
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-    flip fix (0, model, trainData, 0) $ \loop (i, mdl, data_list, sumLossValue) -> do
+    flip fix (0 :: Int, model, trainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
         (loss, _, _, newState) <- predict mdl (head oneData) oneHotLabels
         let lossValue = (asValue loss) :: Float
         print $ "epoch " ++ show epoc  ++ " i " ++ show i ++ " loss " ++ show loss
         let model' = mdl { h0c0 = newState }
-        u <- update model' GD loss learningRate
-        let (newModel, _) = u
-        loop (i + 1, newModel, restDataList, sumLossValue + lossValue)
+            sumLoss = currentSumLoss + loss  -- TODO: sum関数を用いる
+        if (i + 1) `mod` batchSize == 0 then do
+          u <- update model' GD sumLoss learningRate
+          let (newModel, _) = u
+          loop (i + 1, newModel, restDataList, sumLossValue + lossValue, 0)
+        else do
+          loop (i + 1, model', restDataList, sumLossValue + lossValue, sumLoss)
       else do
         validLosses <- forM validData $ \dataPoint -> do
-          (loss, _, _, _) <- predict model dataPoint oneHotLabels
+          (loss, _, _, _) <- predict mdl dataPoint oneHotLabels
           let lossValue = (asValue loss) :: Float
           return lossValue
 
@@ -164,8 +167,8 @@ main = do
   drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
-    (_, isCorrect, y, _) <- predict trainedModel dataPoint oneHotLabels
-    let index = (asValue $ argmax (Dim 0) KeepDim y) - 1
+    (_, isCorrect, probabilities, _) <- predict trainedModel dataPoint oneHotLabels
+    let index = (asValue $ argmax (Dim 1) KeepDim probabilities) - 1
     let label = toEnum index :: QT.DTTrule
     return (isCorrect, label)
 
