@@ -119,10 +119,10 @@ main = do
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
   let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
-  let iter = 1 :: Int
+  let iter = 10 :: Int
       device = Device CPU 0
       biDirectional = False
-      input_size = 32
+      input_size = 128
       numOfLayers = 1
       hiddenSize = 128
       has_bias = False
@@ -138,17 +138,18 @@ main = do
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-    flip fix (0 :: Int, model, trainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
+    shuffledTrainData <- shuffleM trainData
+    flip fix (0 :: Int, model, shuffledTrainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
         (loss, _, _, newState) <- predict device mdl (head oneData) oneHotLabels
         let lossValue = (asValue loss) :: Float
-        print $ "epoch " ++ show epoc  ++ " i " ++ show i ++ " loss " ++ show loss
         let model' = mdl { h0c0 = newState }
-            sumLoss = currentSumLoss + loss  -- TODO: sum関数を用いる
+            sumLoss = currentSumLoss + loss
         if (i + 1) `mod` batchSize == 0 then do
           u <- update model' optimizer sumLoss learningRate
           let (newModel, _) = u
+          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " avgloss " ++ show (sumLoss / fromIntegral batchSize)
           loop (i + 1, newModel, restDataList, sumLossValue + lossValue, 0)
         else do
           loop (i + 1, model', restDataList, sumLossValue + lossValue, sumLoss)
