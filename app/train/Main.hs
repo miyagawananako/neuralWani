@@ -33,11 +33,9 @@ saveFilePath = "data/proofSearchResult"
 
 labels :: [QT.DTTrule]
 labels = [minBound..]
--- labels = [QT.Var, QT.Con]
 
 tokens :: [Token]
 tokens = [minBound..]
--- tokens = [Word1,COMMA,Type',Word2]
 
 -- 初期化のためのハイパーパラメータ
 data HypParams = HypParams {
