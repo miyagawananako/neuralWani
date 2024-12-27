@@ -8,6 +8,8 @@ module SplitJudgment
     , getFrequentWords
     , Token(..)
     , splitJudgment
+    , countRule
+    , copyData
     ) where
 
 import qualified DTS.QueryTypes as QT
@@ -19,6 +21,7 @@ import qualified Data.Map.Strict as Map
 import Data.List (sortOn)
 import Data.Ord (Down(..))
 import qualified Data.Set as Set
+import Data.Function (fix)
 
 isParen :: Bool
 isParen = False
@@ -208,3 +211,38 @@ splitJudgment judgment frequentWords =
   wrapContext (splitPreterms (U.contxt judgment) frequentWords) ++
   wrapTerm (splitPreterm (U.trm judgment) frequentWords) ++
   wrapTyp (splitPreterm (U.typ judgment) frequentWords)
+
+countRule :: [QT.DTTrule] -> [(QT.DTTrule, Int)]
+countRule rules = sortOn (Down . snd) $ Map.toList ruleFreqMap
+  where
+    ruleFreqMap :: Map.Map QT.DTTrule Int
+    ruleFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty rules
+
+splitByLabel :: [([Token], QT.DTTrule)] -> IO [(QT.DTTrule, [([Token], QT.DTTrule)])]
+splitByLabel dataset = do
+  flip fix (0, dataset, []) $ \loop (i, datalist, splittedData) -> do
+    if datalist == [] then return splittedData
+    else do
+      let (tokens, rule) = head datalist
+      let data' = (tokens, rule)
+      let rest = tail datalist
+      let splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
+      loop (i + 1, rest, splittedData')
+
+-- 最も数が多いラベルと同数、各ラベルでデータを複製する
+copyData :: [([Token], QT.DTTrule)] -> IO [([Token], QT.DTTrule)]
+copyData dataset = do
+  let countedRules = countRule $ map (\(_, rule) -> rule) dataset
+  let maxCount = snd $ head countedRules
+  splitedbyLabel <- splitByLabel dataset
+  flip fix (0, splitedbyLabel, []) $ \loop (i, datalist, copiedData) -> do
+    if datalist == [] then return copiedData
+    else do
+      let (_, datas) = head datalist
+      let rest = tail datalist
+      let replicateCount = maxCount `div` (length datas)
+      let modCount = maxCount `mod` length datas
+      let copiedData' = copiedData ++ (concat $ replicate replicateCount datas) ++ take modCount datas
+      print $ "length copiedData' " ++ show (length copiedData')
+      loop (i + 1, rest, copiedData')
+

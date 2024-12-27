@@ -10,6 +10,9 @@ import qualified Data.Text as T       --text
 import qualified Data.Text.IO as T    --text
 import qualified Data.Serialize.Text as T --cereal-text
 import qualified Data.List as L       --base
+import qualified Data.Map as Map      --containers
+import Data.List (sortOn)
+import Data.Ord (Down(..))
 import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
@@ -26,7 +29,7 @@ import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Util.Dict    (sortWords,oneHotFactory) --nlp-tools
 import ML.Exp.Chart   (drawLearningCurve) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
-import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
+import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment, countRule, copyData)
 
 saveFilePath :: FilePath
 saveFilePath = "data/proofSearchResult"
@@ -113,9 +116,18 @@ main = do
 
   let ruleList = map (\(_, rule) -> rule) dataset
 
+  let countedRules = countRule ruleList
+  print $ "countedRules " ++ show countedRules
+
   allData <- shuffleM $ zip constructorData ruleList
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
   let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
+
+  let countedRulesTrain = countRule $ map (\(_, rule) -> rule) trainData
+  print $ "countedRulesTrain " ++ show countedRulesTrain
+
+  copiedData <- copyData trainData
+  print $ "copiedData " ++ show (length copiedData)
 
   let iter = 10 :: Int
       device = Device CPU 0
@@ -136,7 +148,7 @@ main = do
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-    shuffledTrainData <- shuffleM trainData
+    shuffledTrainData <- shuffleM copiedData
     flip fix (0 :: Int, model, shuffledTrainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
