@@ -15,9 +15,9 @@ import qualified DTS.QueryTypes as QT
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
 import Torch.Device       (Device(..),DeviceType(..))
 import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack, embedding', logSoftmax)
-import Torch.NN           (Parameter,Parameterized,Randomizable,sample)
+import Torch.NN           (Parameter,Parameterized,Randomizable,sample, flattenParameters)
 import Torch.Autograd     (IndependentTensor(..),makeIndependent)
-import Torch.Optim        (GD(..))
+import Torch.Optim        (GD(..), Adam(..), mkAdam)
 import Torch.Train        (update,showLoss,saveParams,loadParams)
 import Torch.Control      (mapAccumM)
 import Torch.Tensor.TensorFactories (randnIO', asTensor'')
@@ -131,11 +131,12 @@ main = do
       (oneHotLabels, _) = oneHotFactory labels
       numOfRules = length labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = 1e-5 :: Tensor
+      learningRate = 1e-3 :: Tensor
       batchSize = 10
       graphFileName = "app/train/graph-seq-class.png"
       modelFileName = "app/train/seq-class.model"
   initModel <- sample hyperParams
+  let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
     flip fix (0 :: Int, model, trainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
       if length data_list > 0 then do
@@ -146,7 +147,7 @@ main = do
         let model' = mdl { h0c0 = newState }
             sumLoss = currentSumLoss + loss  -- TODO: sum関数を用いる
         if (i + 1) `mod` batchSize == 0 then do
-          u <- update model' GD sumLoss learningRate
+          u <- update model' optimizer sumLoss learningRate
           let (newModel, _) = u
           loop (i + 1, newModel, restDataList, sumLossValue + lossValue, 0)
         else do
