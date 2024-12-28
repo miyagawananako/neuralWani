@@ -13,6 +13,7 @@ import qualified Data.List as L       --base
 import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
+import qualified Data.Text.Encoding as E
 import qualified Data.Map as Map      --containers
 import Data.List (sortOn)
 import Data.Ord (Down(..))
@@ -129,11 +130,9 @@ main = do
   let countedRulesTrain = countRule $ map (\(_, rule) -> rule) trainData
   print $ "countedRulesTrain " ++ show countedRulesTrain
 
-  -- copiedData <- copyData trainData
   augmentedData <- replaceData trainData
-  print $ "augmentedData " ++ show (length augmentedData)
 
-  let iter = 10 :: Int
+  let iter = 5 :: Int
       device = Device CPU 0
       biDirectional = False
       input_size = 128
@@ -150,7 +149,7 @@ main = do
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-    shuffledTrainData <- shuffleM copiedData
+    shuffledTrainData <- shuffleM augmentedData
     flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
@@ -200,7 +199,7 @@ main = do
   let classificationReport = showClassificationReport (length labels) (zip predictedLabel (snd $ unzip $ testData))
   T.putStr classificationReport
 
-  B.writeFile classificationReportFileName classificationReport
+  B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
 
   drawConfusionMatrix confusionMatrixFileName (length labels) (zip predictedLabel (snd $ unzip $ testData))
 

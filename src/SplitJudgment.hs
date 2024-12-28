@@ -256,9 +256,9 @@ replaceData dataset = do
           replicateCount = generateCount `div` (length datas)
           modCount = generateCount `mod` length datas
           copiedData = (concat $ replicate replicateCount datas) ++ take modCount datas
-          newDatas = map (\oneData -> do
-            replacedData <- replaceToken $ fst oneData
-            return (replacedData, snd oneData)) copiedData
+      newDatas <- mapM (\oneData -> do
+        replacedData <- replaceToken $ fst oneData
+        return (replacedData, snd oneData)) copiedData
       loop (i + 1, rest, generatedDataList ++ datas ++ newDatas)
 
 replaceToken :: [Token] -> IO [Token]
@@ -267,43 +267,44 @@ replaceToken tokenList = do
       varTokenList = [Var'0, Var'1, Var'2, Var'3, Var'4, Var'5, Var'6]
   randomWordIndex <- randomRIO (0, 30)
   randomVarIndex <- randomRIO (0, 6)
-  return map (\token -> case token of
-    Word1 -> wordTokenList !! randomWordIndex
-    Word2 -> wordTokenList !! ((randomWordIndex + 1) `mod` 31)
-    Word3 -> wordTokenList !! ((randomWordIndex + 2) `mod` 31)
-    Word4 -> wordTokenList !! ((randomWordIndex + 3) `mod` 31)
-    Word5 -> wordTokenList !! ((randomWordIndex + 4) `mod` 31)
-    Word6 -> wordTokenList !! ((randomWordIndex + 5) `mod` 31)
-    Word7 -> wordTokenList !! ((randomWordIndex + 6) `mod` 31)
-    Word8 -> wordTokenList !! ((randomWordIndex + 7) `mod` 31)
-    Word9 -> wordTokenList !! ((randomWordIndex + 8) `mod` 31)
-    Word10 -> wordTokenList !! ((randomWordIndex + 9) `mod` 31)
-    Word11 -> wordTokenList !! ((randomWordIndex + 10) `mod` 31)
-    Word12 -> wordTokenList !! ((randomWordIndex + 11) `mod` 31)
-    Word13 -> wordTokenList !! ((randomWordIndex + 12) `mod` 31)
-    Word14 -> wordTokenList !! ((randomWordIndex + 13) `mod` 31)
-    Word15 -> wordTokenList !! ((randomWordIndex + 14) `mod` 31)
-    Word16 -> wordTokenList !! ((randomWordIndex + 15) `mod` 31)
-    Word17 -> wordTokenList !! ((randomWordIndex + 16) `mod` 31)
-    Word18 -> wordTokenList !! ((randomWordIndex + 17) `mod` 31)
-    Word19 -> wordTokenList !! ((randomWordIndex + 18) `mod` 31)
-    Word20 -> wordTokenList !! ((randomWordIndex + 19) `mod` 31)
-    Word21 -> wordTokenList !! ((randomWordIndex + 20) `mod` 31)
-    Word22 -> wordTokenList !! ((randomWordIndex + 21) `mod` 31)
-    Word23 -> wordTokenList !! ((randomWordIndex + 22) `mod` 31)
-    Word24 -> wordTokenList !! ((randomWordIndex + 23) `mod` 31)
-    Word25 -> wordTokenList !! ((randomWordIndex + 24) `mod` 31)
-    Word26 -> wordTokenList !! ((randomWordIndex + 25) `mod` 31)
-    Word27 -> wordTokenList !! ((randomWordIndex + 26) `mod` 31)
-    Word28 -> wordTokenList !! ((randomWordIndex + 27) `mod` 31)
-    Word29 -> wordTokenList !! ((randomWordIndex + 28) `mod` 31)
-    Word30 -> wordTokenList !! ((randomWordIndex + 29) `mod` 31)
-    Word31 -> wordTokenList !! ((randomWordIndex + 30) `mod` 31)
-    Var'0 -> varTokenList !! randomVarIndex
-    Var'1 -> varTokenList !! ((randomVarIndex + 1) `mod` 7)
-    Var'2 -> varTokenList !! ((randomVarIndex + 2) `mod` 7)
-    Var'3 -> varTokenList !! ((randomVarIndex + 3) `mod` 7)
-    Var'4 -> varTokenList !! ((randomVarIndex + 4) `mod` 7)
-    Var'5 -> varTokenList !! ((randomVarIndex + 5) `mod` 7)
-    Var'6 -> varTokenList !! ((randomVarIndex + 6) `mod` 7)
-    _ -> token) tokenList
+  let replacedList = map (\token -> case token of
+        Word1 -> wordTokenList !! randomWordIndex
+        Word2 -> wordTokenList !! ((randomWordIndex + 1) `mod` 31)
+        Word3 -> wordTokenList !! ((randomWordIndex + 2) `mod` 31)
+        Word4 -> wordTokenList !! ((randomWordIndex + 3) `mod` 31)
+        Word5 -> wordTokenList !! ((randomWordIndex + 4) `mod` 31)
+        Word6 -> wordTokenList !! ((randomWordIndex + 5) `mod` 31)
+        Word7 -> wordTokenList !! ((randomWordIndex + 6) `mod` 31)
+        Word8 -> wordTokenList !! ((randomWordIndex + 7) `mod` 31)
+        Word9 -> wordTokenList !! ((randomWordIndex + 8) `mod` 31)
+        Word10 -> wordTokenList !! ((randomWordIndex + 9) `mod` 31)
+        Word11 -> wordTokenList !! ((randomWordIndex + 10) `mod` 31)
+        Word12 -> wordTokenList !! ((randomWordIndex + 11) `mod` 31)
+        Word13 -> wordTokenList !! ((randomWordIndex + 12) `mod` 31)
+        Word14 -> wordTokenList !! ((randomWordIndex + 13) `mod` 31)
+        Word15 -> wordTokenList !! ((randomWordIndex + 14) `mod` 31)
+        Word16 -> wordTokenList !! ((randomWordIndex + 15) `mod` 31)
+        Word17 -> wordTokenList !! ((randomWordIndex + 16) `mod` 31)
+        Word18 -> wordTokenList !! ((randomWordIndex + 17) `mod` 31)
+        Word19 -> wordTokenList !! ((randomWordIndex + 18) `mod` 31)
+        Word20 -> wordTokenList !! ((randomWordIndex + 19) `mod` 31)
+        Word21 -> wordTokenList !! ((randomWordIndex + 20) `mod` 31)
+        Word22 -> wordTokenList !! ((randomWordIndex + 21) `mod` 31)
+        Word23 -> wordTokenList !! ((randomWordIndex + 22) `mod` 31)
+        Word24 -> wordTokenList !! ((randomWordIndex + 23) `mod` 31)
+        Word25 -> wordTokenList !! ((randomWordIndex + 24) `mod` 31)
+        Word26 -> wordTokenList !! ((randomWordIndex + 25) `mod` 31)
+        Word27 -> wordTokenList !! ((randomWordIndex + 26) `mod` 31)
+        Word28 -> wordTokenList !! ((randomWordIndex + 27) `mod` 31)
+        Word29 -> wordTokenList !! ((randomWordIndex + 28) `mod` 31)
+        Word30 -> wordTokenList !! ((randomWordIndex + 29) `mod` 31)
+        Word31 -> wordTokenList !! ((randomWordIndex + 30) `mod` 31)
+        Var'0 -> varTokenList !! randomVarIndex
+        Var'1 -> varTokenList !! ((randomVarIndex + 1) `mod` 7)
+        Var'2 -> varTokenList !! ((randomVarIndex + 2) `mod` 7)
+        Var'3 -> varTokenList !! ((randomVarIndex + 3) `mod` 7)
+        Var'4 -> varTokenList !! ((randomVarIndex + 4) `mod` 7)
+        Var'5 -> varTokenList !! ((randomVarIndex + 5) `mod` 7)
+        Var'6 -> varTokenList !! ((randomVarIndex + 6) `mod` 7)
+        _ -> token) tokenList
+  return replacedList
