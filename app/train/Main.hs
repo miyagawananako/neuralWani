@@ -24,7 +24,7 @@ import Torch.Tensor.TensorFactories (randnIO', asTensor'')
 import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Util.Dict    (sortWords,oneHotFactory) --nlp-tools
-import ML.Exp.Chart   (drawLearningCurve) --nlp-tools
+import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
 import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
 
@@ -137,28 +137,28 @@ main = do
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
     shuffledTrainData <- shuffleM trainData
-    flip fix (0 :: Int, model, shuffledTrainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
+    flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
         (loss, _, _, newState) <- predict device mdl (head oneData) oneHotLabels
         let lossValue = (asValue loss) :: Float
-        let model' = mdl { h0c0 = newState }
+            model' = mdl { h0c0 = newState }
             sumLoss = currentSumLoss + loss
         if (i + 1) `mod` batchSize == 0 then do
           u <- update model' optimizer sumLoss learningRate
           let (newModel, _) = u
-          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " avgloss " ++ show (sumLoss / fromIntegral batchSize)
-          loop (i + 1, newModel, restDataList, sumLossValue + lossValue, 0)
+          validLosses <- forM validData $ \dataPoint -> do
+            (loss, _, _, _) <- predict device mdl dataPoint oneHotLabels
+            let validLossValue = (asValue loss) :: Float
+            return validLossValue
+          let validLoss = sum validLosses / fromIntegral (length validLosses)
+          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " avgloss " ++ show (sumLoss / fromIntegral batchSize) ++ " validLoss " ++ show validLoss
+          loop (i + 1, newModel, restDataList, sumLossValue + lossValue, validLossList ++ [validLoss], 0)
         else do
-          loop (i + 1, model', restDataList, sumLossValue + lossValue, sumLoss)
+          loop (i + 1, model', restDataList, sumLossValue + lossValue, validLossList, sumLoss)
       else do
-        validLosses <- forM validData $ \dataPoint -> do
-          (loss, _, _, _) <- predict device mdl dataPoint oneHotLabels
-          let lossValue = (asValue loss) :: Float
-          return lossValue
-
         let avgTrainLoss = sumLossValue / fromIntegral (length trainData)
-            avgValidLoss = sum validLosses / fromIntegral (length validLosses)
+            avgValidLoss = sum validLossList / fromIntegral (length validLossList)
 
         return (mdl, (avgTrainLoss, avgValidLoss))
 
@@ -175,7 +175,9 @@ main = do
 
   print $ zip (snd $ unzip $ testData) ans
 
-  -- T.putStr $ showClassificationReport $ zip (snd $ unzip $ testData) ans
+  T.putStr $ showClassificationReport (length labels) (zip (snd $ unzip $ testData) ans)
+
+  drawConfusionMatrix "app/train/confusion-matrix.png" (length labels) (zip (snd $ unzip $ testData) ans)
 
   print $ "isCorrects " ++ show isCorrects
 
