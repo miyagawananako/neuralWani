@@ -119,7 +119,7 @@ main = do
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
   let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
-  let iter = 1 :: Int
+  let iter = 10 :: Int
       device = Device CPU 0
       biDirectional = False
       input_size = 128
@@ -132,7 +132,7 @@ main = do
       numOfRules = length labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-3 :: Tensor
-      batchSize = 32
+      batchSize = 10
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
@@ -177,13 +177,13 @@ main = do
     let label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
     return (isCorrect, label)
 
-  let (isCorrects, ans) = unzip pairs
+  let (isCorrects, predictedLabel) = unzip pairs
 
-  print $ zip (snd $ unzip $ testData) ans
+  print $ zip predictedLabel (snd $ unzip $ testData)
 
-  T.putStr $ showClassificationReport (length labels) (zip (snd $ unzip $ testData) ans)
+  T.putStr $ showClassificationReport (length labels) (zip predictedLabel (snd $ unzip $ testData))
 
-  drawConfusionMatrix confusionMatrixFileName (length labels) (zip (snd $ unzip $ testData) ans)
+  drawConfusionMatrix confusionMatrixFileName (length labels) (zip predictedLabel (snd $ unzip $ testData))
 
   print $ "isCorrects " ++ show isCorrects
 
