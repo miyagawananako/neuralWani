@@ -12,6 +12,7 @@ import qualified Data.Serialize.Text as T --cereal-text
 import qualified Data.List as L       --base
 import Data.Time.LocalTime
 import qualified Data.Time as Time
+import qualified Data.ByteString as B --bytestring
 import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
@@ -167,6 +168,7 @@ main = do
       modelFileName = "trained_data/seq-class" ++ timeString ++ ".model"
       graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
       confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
+      classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
       splitType = if isParen then "()" else if isSep then "SEP" else "EO~"
       learningCurveTitle = "type: " ++ show splitType ++ " b: " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show input_size ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
@@ -182,7 +184,10 @@ main = do
 
   print $ zip predictedLabel (snd $ unzip $ testData)
 
-  T.putStr $ showClassificationReport (length labels) (zip predictedLabel (snd $ unzip $ testData))
+  let classificationReport = showClassificationReport (length labels) (zip predictedLabel (snd $ unzip $ testData))
+  T.putStr classificationReport
+
+  B.writeFile classificationReportFileName classificationReport
 
   drawConfusionMatrix confusionMatrixFileName (length labels) (zip predictedLabel (snd $ unzip $ testData))
 
