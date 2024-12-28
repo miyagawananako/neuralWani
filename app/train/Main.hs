@@ -32,7 +32,7 @@ import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Util.Dict    (sortWords,oneHotFactory) --nlp-tools
 import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
-import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment, countRule, copyData)
+import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment, countRule, copyData, replaceData)
 
 saveFilePath :: FilePath
 saveFilePath = "data/proofSearchResult"
@@ -129,8 +129,9 @@ main = do
   let countedRulesTrain = countRule $ map (\(_, rule) -> rule) trainData
   print $ "countedRulesTrain " ++ show countedRulesTrain
 
-  copiedData <- copyData trainData
-  print $ "copiedData " ++ show (length copiedData)
+  -- copiedData <- copyData trainData
+  augmentedData <- replaceData trainData
+  print $ "augmentedData " ++ show (length augmentedData)
 
   let iter = 10 :: Int
       device = Device CPU 0

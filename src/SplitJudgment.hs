@@ -10,6 +10,7 @@ module SplitJudgment
     , splitJudgment
     , countRule
     , copyData
+    , replaceData
     ) where
 
 import qualified DTS.QueryTypes as QT
@@ -22,6 +23,7 @@ import Data.List (sortOn)
 import Data.Ord (Down(..))
 import qualified Data.Set as Set
 import Data.Function (fix)
+import System.Random (randomRIO)
 
 loadActionsFromBinary :: FilePath -> IO [(U.Judgment, QT.DTTrule)]
 loadActionsFromBinary filepath = do
@@ -218,25 +220,90 @@ splitByLabel dataset = do
     if datalist == [] then return splittedData
     else do
       let (tokens, rule) = head datalist
-      let data' = (tokens, rule)
-      let rest = tail datalist
-      let splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
+          data' = (tokens, rule)
+          rest = tail datalist
+          splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
       loop (i + 1, rest, splittedData')
 
 -- 最も数が多いラベルと同数、各ラベルでデータを複製する
 copyData :: [([Token], QT.DTTrule)] -> IO [([Token], QT.DTTrule)]
 copyData dataset = do
   let countedRules = countRule $ map (\(_, rule) -> rule) dataset
-  let maxCount = snd $ head countedRules
+      maxCount = snd $ head countedRules
   splitedbyLabel <- splitByLabel dataset
   flip fix (0, splitedbyLabel, []) $ \loop (i, datalist, copiedData) -> do
     if datalist == [] then return copiedData
     else do
       let (_, datas) = head datalist
-      let rest = tail datalist
-      let replicateCount = maxCount `div` (length datas)
-      let modCount = maxCount `mod` length datas
-      let copiedData' = copiedData ++ (concat $ replicate replicateCount datas) ++ take modCount datas
+          rest = tail datalist
+          replicateCount = maxCount `div` (length datas)
+          modCount = maxCount `mod` length datas
+          copiedData' = copiedData ++ (concat $ replicate replicateCount datas) ++ take modCount datas
       print $ "length copiedData' " ++ show (length copiedData')
       loop (i + 1, rest, copiedData')
 
+replaceData :: [([Token], QT.DTTrule)] -> IO [([Token], QT.DTTrule)]
+replaceData dataset = do
+  let countedRules = countRule $ map (\(_, rule) -> rule) dataset
+      maxCount = snd $ head countedRules
+  splitedbyLabel <- splitByLabel dataset
+  flip fix (0, splitedbyLabel, []) $ \loop (i, datalist, generatedDataList) -> do
+    if datalist == [] then return generatedDataList
+    else do
+      let (_, datas) = head datalist
+          rest = tail datalist
+          generateCount = maxCount - length datas
+          replicateCount = generateCount `div` (length datas)
+          modCount = generateCount `mod` length datas
+          copiedData = (concat $ replicate replicateCount datas) ++ take modCount datas
+          newDatas = map (\oneData -> do
+            replacedData <- replaceToken $ fst oneData
+            return (replacedData, snd oneData)) copiedData
+      loop (i + 1, rest, generatedDataList ++ datas ++ newDatas)
+
+replaceToken :: [Token] -> IO [Token]
+replaceToken tokenList = do
+  let wordTokenList = [Word1, Word2, Word3, Word4, Word5, Word6, Word7, Word8, Word9, Word10, Word11, Word12, Word13, Word14, Word15, Word16, Word17, Word18, Word19, Word20, Word21, Word22, Word23, Word24, Word25, Word26, Word27, Word28, Word29, Word30, Word31]
+      varTokenList = [Var'0, Var'1, Var'2, Var'3, Var'4, Var'5, Var'6]
+  randomWordIndex <- randomRIO (0, 30)
+  randomVarIndex <- randomRIO (0, 6)
+  return map (\token -> case token of
+    Word1 -> wordTokenList !! randomWordIndex
+    Word2 -> wordTokenList !! ((randomWordIndex + 1) `mod` 31)
+    Word3 -> wordTokenList !! ((randomWordIndex + 2) `mod` 31)
+    Word4 -> wordTokenList !! ((randomWordIndex + 3) `mod` 31)
+    Word5 -> wordTokenList !! ((randomWordIndex + 4) `mod` 31)
+    Word6 -> wordTokenList !! ((randomWordIndex + 5) `mod` 31)
+    Word7 -> wordTokenList !! ((randomWordIndex + 6) `mod` 31)
+    Word8 -> wordTokenList !! ((randomWordIndex + 7) `mod` 31)
+    Word9 -> wordTokenList !! ((randomWordIndex + 8) `mod` 31)
+    Word10 -> wordTokenList !! ((randomWordIndex + 9) `mod` 31)
+    Word11 -> wordTokenList !! ((randomWordIndex + 10) `mod` 31)
+    Word12 -> wordTokenList !! ((randomWordIndex + 11) `mod` 31)
+    Word13 -> wordTokenList !! ((randomWordIndex + 12) `mod` 31)
+    Word14 -> wordTokenList !! ((randomWordIndex + 13) `mod` 31)
+    Word15 -> wordTokenList !! ((randomWordIndex + 14) `mod` 31)
+    Word16 -> wordTokenList !! ((randomWordIndex + 15) `mod` 31)
+    Word17 -> wordTokenList !! ((randomWordIndex + 16) `mod` 31)
+    Word18 -> wordTokenList !! ((randomWordIndex + 17) `mod` 31)
+    Word19 -> wordTokenList !! ((randomWordIndex + 18) `mod` 31)
+    Word20 -> wordTokenList !! ((randomWordIndex + 19) `mod` 31)
+    Word21 -> wordTokenList !! ((randomWordIndex + 20) `mod` 31)
+    Word22 -> wordTokenList !! ((randomWordIndex + 21) `mod` 31)
+    Word23 -> wordTokenList !! ((randomWordIndex + 22) `mod` 31)
+    Word24 -> wordTokenList !! ((randomWordIndex + 23) `mod` 31)
+    Word25 -> wordTokenList !! ((randomWordIndex + 24) `mod` 31)
+    Word26 -> wordTokenList !! ((randomWordIndex + 25) `mod` 31)
+    Word27 -> wordTokenList !! ((randomWordIndex + 26) `mod` 31)
+    Word28 -> wordTokenList !! ((randomWordIndex + 27) `mod` 31)
+    Word29 -> wordTokenList !! ((randomWordIndex + 28) `mod` 31)
+    Word30 -> wordTokenList !! ((randomWordIndex + 29) `mod` 31)
+    Word31 -> wordTokenList !! ((randomWordIndex + 30) `mod` 31)
+    Var'0 -> varTokenList !! randomVarIndex
+    Var'1 -> varTokenList !! ((randomVarIndex + 1) `mod` 7)
+    Var'2 -> varTokenList !! ((randomVarIndex + 2) `mod` 7)
+    Var'3 -> varTokenList !! ((randomVarIndex + 3) `mod` 7)
+    Var'4 -> varTokenList !! ((randomVarIndex + 4) `mod` 7)
+    Var'5 -> varTokenList !! ((randomVarIndex + 5) `mod` 7)
+    Var'6 -> varTokenList !! ((randomVarIndex + 6) `mod` 7)
+    _ -> token) tokenList
