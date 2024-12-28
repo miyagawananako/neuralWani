@@ -33,6 +33,7 @@ dependencies:
 - nlp-tools
 - random-shuffle
 - cereal-text
+- time
 
 ghc-options:
 - -Wall

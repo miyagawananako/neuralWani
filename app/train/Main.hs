@@ -10,6 +10,8 @@ import qualified Data.Text as T       --text
 import qualified Data.Text.IO as T    --text
 import qualified Data.Serialize.Text as T --cereal-text
 import qualified Data.List as L       --base
+import Data.Time.LocalTime
+import qualified Data.Time as Time
 import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
@@ -117,7 +119,7 @@ main = do
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
   let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
-  let iter = 10 :: Int
+  let iter = 1 :: Int
       device = Device CPU 0
       biDirectional = False
       input_size = 128
@@ -130,9 +132,7 @@ main = do
       numOfRules = length labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-3 :: Tensor
-      batchSize = 10
-      graphFileName = "app/train/graph-seq-class.png"
-      modelFileName = "app/train/seq-class.model"
+      batchSize = 32
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
@@ -162,9 +162,15 @@ main = do
 
         return (mdl, (avgTrainLoss, avgValidLoss))
 
-  let (losses, validLosses) = unzip lossesPair
+  currentTime <- getZonedTime
+  let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
+      modelFileName = "trained_data/seq-class" ++ timeString ++ ".model"
+      graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
+      confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
+      learningCurveTitle = "b : " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show input_size ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
-  drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
+  drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
     (_, isCorrect, predictedClassIndex, _) <- predict device trainedModel dataPoint oneHotLabels
@@ -177,7 +183,7 @@ main = do
 
   T.putStr $ showClassificationReport (length labels) (zip (snd $ unzip $ testData) ans)
 
-  drawConfusionMatrix "app/train/confusion-matrix.png" (length labels) (zip (snd $ unzip $ testData) ans)
+  drawConfusionMatrix confusionMatrixFileName (length labels) (zip (snd $ unzip $ testData) ans)
 
   print $ "isCorrects " ++ show isCorrects
 
