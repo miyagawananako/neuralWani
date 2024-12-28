@@ -10,6 +10,9 @@ import qualified Data.Text as T       --text
 import qualified Data.Text.IO as T    --text
 import qualified Data.Serialize.Text as T --cereal-text
 import qualified Data.List as L       --base
+import Data.Time.LocalTime
+import qualified Data.Time as Time
+import qualified Data.ByteString as B --bytestring
 import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
@@ -24,7 +27,7 @@ import Torch.Tensor.TensorFactories (randnIO', asTensor'')
 import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Util.Dict    (sortWords,oneHotFactory) --nlp-tools
-import ML.Exp.Chart   (drawLearningCurve) --nlp-tools
+import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
 import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
 
@@ -107,15 +110,15 @@ main = do
   dataset <- loadActionsFromBinary saveFilePath
 
   let wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
-  let frequentWords = getFrequentWords wordList
-
-  let constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords) dataset
-
-  let ruleList = map (\(_, rule) -> rule) dataset
+      frequentWords = getFrequentWords wordList
+      isParen = False
+      isSep = False
+      constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords isParen isSep) dataset
+      ruleList = map (\(_, rule) -> rule) dataset
 
   allData <- shuffleM $ zip constructorData ruleList
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
-  let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
+      (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
   let iter = 10 :: Int
       device = Device CUDA 0
@@ -131,51 +134,62 @@ main = do
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-3 :: Tensor
       batchSize = 10
-      graphFileName = "app/train/graph-seq-class.png"
-      modelFileName = "app/train/seq-class.model"
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
     shuffledTrainData <- shuffleM trainData
-    flip fix (0 :: Int, model, shuffledTrainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
+    flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
         (loss, _, _, newState) <- predict device mdl (head oneData) oneHotLabels
         let lossValue = (asValue loss) :: Float
-        let model' = mdl { h0c0 = newState }
+            model' = mdl { h0c0 = newState }
             sumLoss = currentSumLoss + loss
         if (i + 1) `mod` batchSize == 0 then do
           u <- update model' optimizer sumLoss learningRate
           let (newModel, _) = u
-          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " avgloss " ++ show (sumLoss / fromIntegral batchSize)
-          loop (i + 1, newModel, restDataList, sumLossValue + lossValue, 0)
+          validLosses <- forM validData $ \dataPoint -> do
+            (loss, _, _, _) <- predict device mdl dataPoint oneHotLabels
+            let validLossValue = (asValue loss) :: Float
+            return validLossValue
+          let validLoss = sum validLosses / fromIntegral (length validLosses)
+          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " avgloss " ++ show (sumLoss / fromIntegral batchSize) ++ " validLoss " ++ show validLoss
+          loop (i + 1, newModel, restDataList, sumLossValue + lossValue, validLossList ++ [validLoss], 0)
         else do
-          loop (i + 1, model', restDataList, sumLossValue + lossValue, sumLoss)
+          loop (i + 1, model', restDataList, sumLossValue + lossValue, validLossList, sumLoss)
       else do
-        validLosses <- forM validData $ \dataPoint -> do
-          (loss, _, _, _) <- predict device mdl dataPoint oneHotLabels
-          let lossValue = (asValue loss) :: Float
-          return lossValue
-
         let avgTrainLoss = sumLossValue / fromIntegral (length trainData)
-            avgValidLoss = sum validLosses / fromIntegral (length validLosses)
+            avgValidLoss = sum validLossList / fromIntegral (length validLossList)
 
         return (mdl, (avgTrainLoss, avgValidLoss))
 
-  let (losses, validLosses) = unzip lossesPair
+  currentTime <- getZonedTime
+  let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
+      modelFileName = "trained_data/seq-class" ++ timeString ++ ".model"
+      graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
+      confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
+      classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
+      splitType = if isParen then "()" else if isSep then "SEP" else "EO~"
+      learningCurveTitle = "type: " ++ show splitType ++ " b: " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show input_size ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
-  drawLearningCurve graphFileName "Learning Curve" [("training", reverse losses), ("validation", reverse validLosses)]
+  drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
     (_, isCorrect, predictedClassIndex, _) <- predict device trainedModel dataPoint oneHotLabels
     let label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
     return (isCorrect, label)
 
-  let (isCorrects, ans) = unzip pairs
+  let (isCorrects, predictedLabel) = unzip pairs
 
-  print $ zip (snd $ unzip $ testData) ans
+  print $ zip predictedLabel (snd $ unzip $ testData)
 
-  -- T.putStr $ showClassificationReport $ zip (snd $ unzip $ testData) ans
+  let classificationReport = showClassificationReport (length labels) (zip predictedLabel (snd $ unzip $ testData))
+  T.putStr classificationReport
+
+  B.writeFile classificationReportFileName classificationReport
+
+  drawConfusionMatrix confusionMatrixFileName (length labels) (zip predictedLabel (snd $ unzip $ testData))
 
   print $ "isCorrects " ++ show isCorrects
 

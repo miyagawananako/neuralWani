@@ -46,6 +46,7 @@ library
     , random-shuffle
     , store
     , text
+    , time
     , waniTEST
   default-language: Haskell2010
 
@@ -72,6 +73,7 @@ executable preprocess-exe
     , random-shuffle
     , store
     , text
+    , time
     , waniTEST
   default-language: Haskell2010
 
@@ -98,6 +100,7 @@ executable train-exe
     , random-shuffle
     , store
     , text
+    , time
     , waniTEST
   default-language: Haskell2010
 
@@ -125,5 +128,6 @@ test-suite test
     , random-shuffle
     , store
     , text
+    , time
     , waniTEST
   default-language: Haskell2010
