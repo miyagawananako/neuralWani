@@ -109,15 +109,15 @@ main = do
   dataset <- loadActionsFromBinary saveFilePath
 
   let wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
-  let frequentWords = getFrequentWords wordList
-
-  let constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords) dataset
-
-  let ruleList = map (\(_, rule) -> rule) dataset
+      frequentWords = getFrequentWords wordList
+      isParen = False
+      isSep = False
+      constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords isParen isSep) dataset
+      ruleList = map (\(_, rule) -> rule) dataset
 
   allData <- shuffleM $ zip constructorData ruleList
   let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
-  let (validData, testData) = splitAt (length restData * 5 `div` 10) restData
+      (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
   let iter = 10 :: Int
       device = Device CPU 0
@@ -167,7 +167,8 @@ main = do
       modelFileName = "trained_data/seq-class" ++ timeString ++ ".model"
       graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
       confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
-      learningCurveTitle = "b : " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show input_size ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      splitType = if isParen then "()" else if isSep then "SEP" else "EO~"
+      learningCurveTitle = "type: " ++ show splitType ++ " b: " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show input_size ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
