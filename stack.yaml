@@ -15,9 +15,9 @@ extra-deps:
   - git: http://github.com/DaisukeBekki/JSeM.git
     commit: c2cd39168e267007b4690dbf625329bac57a8185
   - git: git@github.com:miyagawananako/lightblue.git
-    commit: ec8d9d8c8082841e6e6c9e6bf3134d0762e3b30e
+    commit: dce5584f5232c7047322435b9183ed0e56e3c0e6
   - git: git@github.com:hinarid/waniTest.git
-    commit: 1fbc5e13f29c9b4b823c42cae15e853dc0b79b3b
+    commit: 6962393b76b4ebfa8fc5b1018678d2abfcf206e1
 # for hasktorch
   - /home/nanacom/.local/lib/hasktorch/codegen
   - /home/nanacom/.local/lib/hasktorch/libtorch-ffi

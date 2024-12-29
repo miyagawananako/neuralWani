@@ -16,15 +16,15 @@ packages:
     commit: c2cd39168e267007b4690dbf625329bac57a8185
     git: http://github.com/DaisukeBekki/JSeM.git
 - completed:
-    commit: 1fbc5e13f29c9b4b823c42cae15e853dc0b79b3b
+    commit: 6962393b76b4ebfa8fc5b1018678d2abfcf206e1
     git: git@github.com:hinarid/waniTest.git
     name: waniTEST
     pantry-tree:
-      sha256: 0be2f87953bb40051013ad580b8ae1563758f54a6a1fa836a699dba269b01cba
+      sha256: 143aa42c4a1b7b813fad97e02f688ac77f6078bcc9c37a4417c33a9514fbb1b4
       size: 753
     version: 1.0.0.1
   original:
-    commit: 1fbc5e13f29c9b4b823c42cae15e853dc0b79b3b
+    commit: 6962393b76b4ebfa8fc5b1018678d2abfcf206e1
     git: git@github.com:hinarid/waniTest.git
 - completed:
     hackage: datasets-0.4.0@sha256:9bfd5b54c6c5e1e72384a890cf29bf85a02007e0a31c98753f7d225be3c7fa6a,4929
