@@ -13,6 +13,7 @@ import qualified Data.List as L       --base
 import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
+import qualified Data.Text.Encoding as E
 import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
@@ -187,7 +188,7 @@ main = do
   let classificationReport = showClassificationReport (length labels) (zip predictedLabel (snd $ unzip $ testData))
   T.putStr classificationReport
 
-  B.writeFile classificationReportFileName classificationReport
+  B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
 
   drawConfusionMatrix confusionMatrixFileName (length labels) (zip predictedLabel (snd $ unzip $ testData))
 
