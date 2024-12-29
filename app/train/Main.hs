@@ -133,7 +133,7 @@ main = do
   augmentedData <- replaceData trainData
 
   let iter = 5 :: Int
-      device = Device CPU 0
+      device = Device CUDA 0
       biDirectional = False
       input_size = 128
       numOfLayers = 1
@@ -144,7 +144,7 @@ main = do
       (oneHotLabels, _) = oneHotFactory labels
       numOfRules = length labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = 1e-3 :: Tensor
+      learningRate = 1e-2 :: Tensor
       batchSize = 10
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
