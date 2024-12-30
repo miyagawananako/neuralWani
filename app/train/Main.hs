@@ -144,8 +144,8 @@ main = do
       (oneHotLabels, _) = oneHotFactory labels
       numOfRules = length labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = 1e-2 :: Tensor
-      batchSize = 10
+      learningRate = 1e-3 :: Tensor
+      batchSize = 16
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
