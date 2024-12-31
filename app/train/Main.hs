@@ -154,13 +154,15 @@ main = do
             let validLossValue = (asValue loss) :: Float
             return validLossValue
           let validLoss = sum validLosses / fromIntegral (length validLosses)
-          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " avgloss " ++ show (sumLoss / fromIntegral batchSize) ++ " validLoss " ++ show validLoss
+          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral batchSize) :: Float) ++ " validLoss " ++ show validLoss
           loop (i + 1, newModel, restDataList, sumLossValue + lossValue, validLossList ++ [validLoss], 0)
         else do
           loop (i + 1, model', restDataList, sumLossValue + lossValue, validLossList, sumLoss)
       else do
         let avgTrainLoss = sumLossValue / fromIntegral (length trainData)
             avgValidLoss = sum validLossList / fromIntegral (length validLossList)
+        print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
+        print "----------------"
 
         return (mdl, (avgTrainLoss, avgValidLoss))
 
