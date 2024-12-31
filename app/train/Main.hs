@@ -145,7 +145,7 @@ main = do
       numOfRules = length labels
       hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-3 :: Tensor
-      batchSize = 16
+      batchSize = 32
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
@@ -170,7 +170,7 @@ main = do
         else do
           loop (i + 1, model', restDataList, sumLossValue + lossValue, validLossList, sumLoss)
       else do
-        let avgTrainLoss = sumLossValue / fromIntegral (length trainData)
+        let avgTrainLoss = sumLossValue / fromIntegral (length augmentedData)
             avgValidLoss = sum validLossList / fromIntegral (length validLossList)
         print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
         print "----------------"
