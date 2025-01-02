@@ -1,225 +1,200 @@
-import qualified DTS.QueryTypes as QT
-import qualified DTS.DTTdeBruijn as U
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RecordWildCards #-}
+
+import GHC.Generics                   --base
+import Control.Monad (forM)
+import Data.Function(fix)
+import System.Random.Shuffle (shuffleM)
+import qualified Data.Text as T       --text
+import qualified Data.Text.IO as T    --text
+import qualified Data.Serialize.Text as T --cereal-text
+import qualified Data.List as L       --base
+import Data.Time.LocalTime
+import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
-import qualified Data.Text.Lazy as T  --text
-import Data.Store (decode)
-import qualified Data.Map.Strict as Map
-import Data.List (sortOn)
-import Data.Ord (Down(..))
-import qualified Data.Set as Set
+import qualified Data.Text.Encoding as E
+import qualified DTS.QueryTypes as QT
+--hasktorch
+import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
+import Torch.Device       (Device(..),DeviceType(..))
+import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack, embedding', logSoftmax)
+import Torch.NN           (Parameter,Parameterized,Randomizable,sample, flattenParameters)
+import Torch.Autograd     (IndependentTensor(..),makeIndependent)
+import Torch.Optim        (GD(..), Adam(..), mkAdam)
+import Torch.Train        (update,showLoss,saveParams,loadParams)
+import Torch.Control      (mapAccumM)
+import Torch.Tensor.TensorFactories (randnIO', asTensor'')
+import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
+import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
+import ML.Util.Dict    (sortWords,oneHotFactory) --nlp-tools
+import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
+import ML.Exp.Classification (showClassificationReport) --nlp-tools
+import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
 
 saveFilePath :: FilePath
 saveFilePath = "data/proofSearchResult"
 
-loadActionsFromBinary :: FilePath -> IO [(U.Judgment, QT.DTTrule)]
-loadActionsFromBinary filepath = do
-  binary <- B.readFile filepath
-  case decode binary of
-    Left peek_exception -> error $ "Could not parse dic file " ++ filepath ++ ": " ++ (show peek_exception)
-    Right actions -> return actions
+labels :: [QT.DTTrule]
+labels = [minBound..]
 
-getWordsFromPreterm :: U.Preterm -> [T.Text]
-getWordsFromPreterm preterm = case preterm of
-  U.Con c  -> [c]
-  U.Pi a b -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Lam m  -> getWordsFromPreterm m
-  U.App m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Not m  -> getWordsFromPreterm m
-  U.Sigma a b  -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Pair m n   -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Proj _ m   -> getWordsFromPreterm m
-  U.Disj a b   -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Iota _ m   -> getWordsFromPreterm m
-  U.Unpack p h m n -> getWordsFromPreterm p ++ getWordsFromPreterm h ++ getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Succ n     -> getWordsFromPreterm n
-  U.Natrec n e f -> getWordsFromPreterm n ++ getWordsFromPreterm e ++ getWordsFromPreterm f
-  U.Eq a m n   -> getWordsFromPreterm a ++ getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Refl a m   -> getWordsFromPreterm a ++ getWordsFromPreterm m
-  U.Idpeel m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  _ -> []
+tokens :: [Token]
+tokens = [minBound..]
 
-getWordsFromPreterms :: [U.Preterm] -> [T.Text]
-getWordsFromPreterms preterms = concatMap (\preterm -> getWordsFromPreterm preterm) preterms
+-- 初期化のためのハイパーパラメータ
+data HypParams = HypParams {
+  dev :: Device,
+  bi_directional :: Bool,
+  input_size :: Int,
+  has_bias :: Bool,
+  proj_size :: Maybe Int,
+  vocab_size :: Int,
+  num_layers :: Int,
+  hidden_size :: Int,
+  num_rules :: Int
+  } deriving (Eq, Show)
 
-getWordsFromSignature :: U.Signature -> [T.Text]
-getWordsFromSignature signature = concatMap (\(name, preterm) -> [name] ++ getWordsFromPreterm preterm) signature
+-- 学習されるパラメータmodelはこの型
+data Params = Params {
+  lstmParams :: LstmParams,
+  w_emb :: Parameter,
+  mlpParams :: LinearParams,
+  h0c0 :: (Tensor, Tensor)
+  } deriving (Show, Generic)
 
-allowDuplicateWords :: Bool
-allowDuplicateWords = True
+instance Parameterized Params
 
-getWordsFromJudgment :: U.Judgment -> [T.Text]
-getWordsFromJudgment judgment =
-  if allowDuplicateWords then wordList
-  else Set.toList . Set.fromList $ wordList
-  where
-    wordList =
-      getWordsFromSignature (U.signtr judgment) ++
-      getWordsFromPreterms (U.contxt judgment) ++
-      getWordsFromPreterm (U.trm judgment) ++
-      getWordsFromPreterm (U.typ judgment)
+-- data Paramsをここでつくる
+instance Randomizable HypParams Params where
+  sample HypParams{..} = do
+    randomTensor1 <- randnIO' dev [num_layers, hidden_size]
+    randomTensor2 <- randnIO' dev [num_layers, hidden_size]
+    Params
+      <$> sample (LstmHypParams dev bi_directional input_size hidden_size num_layers has_bias proj_size)
+      <*> (makeIndependent =<< randnIO' dev [input_size, vocab_size])
+      <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
+      <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
-getFrequentWords :: [T.Text] -> [T.Text]
-getFrequentWords frequentWords = take 31 $ map fst $ sortOn (Down . snd) $ Map.toList wordFreqMap
-  where
-    wordFreqMap :: Map.Map T.Text Int
-    wordFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO (Tensor, (Tensor, Tensor))
+forward device model dataset = do
+  let inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
+      idxs = asTensor (inputIndices :: [Int])
+      toDeviceIdxs = toDevice device idxs
+      input = embedding' (transpose2D $ toDependent (w_emb model)) toDeviceIdxs
+      dropout_prob = Nothing
+      (lstmOutput, newState) = lstmLayers (lstmParams model) dropout_prob (h0c0 model) $ input
+  pure (lstmOutput, newState)
 
-data Token =  FST | SND | COMMA | EOPair | EOPre | EOSig | EOCon | EOTerm | EOTyp | LPAREN | RPAREN | SEP
-            | Word1 | Word2 | Word3 | Word4 | Word5 | Word6 | Word7 | Word8 | Word9 | Word10 | Word11 | Word12 | Word13 | Word14 | Word15 | Word16 | Word17 | Word18 | Word19 | Word20 | Word21 | Word22 | Word23 | Word24 | Word25 | Word26 | Word27 | Word28 | Word29 | Word30 | Word31 | UNKNOWN
-            | Var'0 | Var'1 | Var'2 | Var'3 | Var'4 | Var'5 | Var'6 | Var'unknown
-            | Type' | Kind' | Pi' | Lam' | App' | Not' | Sigma' | Pair' | Proj' | Disj' | Iota' | Unpack' | Bot' | Unit' | Top' | Entity' | Nat' | Zero' | Succ' | Natrec' | Eq' | Refl' | Idpeel'
-  deriving (Enum, Show)
+predict :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor, (Tensor, Tensor))
+predict device model dataset oneHotLabels = do
+  let groundTruthOneHot = asTensor'' device (tail $ oneHotLabels $ snd dataset)
+      groundTruthIndex = argmax (Dim 0) KeepDim groundTruthOneHot
+  (lstmOutput, newState) <- forward device model dataset
+  let output = linearLayer (mlpParams model) $ lstmOutput
+  reshapedOutput <- reshapeTensor output
+  let output' = logSoftmax (Dim 1) reshapedOutput
+      loss = nllLoss' groundTruthIndex output'
+      predictedClassIndex = argmax (Dim 1) KeepDim reshapedOutput
+      isCorrect = groundTruthIndex == predictedClassIndex
+  pure (loss, isCorrect, predictedClassIndex, newState)
 
-isParen :: Bool
-isParen = False
-
-isSep :: Bool
-isSep = False
-
-textToToken :: T.Text -> [T.Text] -> [Token]
-textToToken text frequentWords =
-  case () of
-    _ | length frequentWords > 0 && text == frequentWords !! 0 -> [Word1]
-      | length frequentWords > 1 && text == frequentWords !! 1 -> [Word2]
-      | length frequentWords > 2 && text == frequentWords !! 2 -> [Word3]
-      | length frequentWords > 3 && text == frequentWords !! 3 -> [Word4]
-      | length frequentWords > 4 && text == frequentWords !! 4 -> [Word5]
-      | length frequentWords > 5 && text == frequentWords !! 5 -> [Word6]
-      | length frequentWords > 6 && text == frequentWords !! 6 -> [Word7]
-      | length frequentWords > 7 && text == frequentWords !! 7 -> [Word8]
-      | length frequentWords > 8 && text == frequentWords !! 8 -> [Word9]
-      | length frequentWords > 9 && text == frequentWords !! 9 -> [Word10]
-      | length frequentWords > 10 && text == frequentWords !! 10 -> [Word11]
-      | length frequentWords > 11 && text == frequentWords !! 11 -> [Word12]
-      | length frequentWords > 12 && text == frequentWords !! 12 -> [Word13]
-      | length frequentWords > 13 && text == frequentWords !! 13 -> [Word14]
-      | length frequentWords > 14 && text == frequentWords !! 14 -> [Word15]
-      | length frequentWords > 15 && text == frequentWords !! 15 -> [Word16]
-      | length frequentWords > 16 && text == frequentWords !! 16 -> [Word17]
-      | length frequentWords > 17 && text == frequentWords !! 17 -> [Word18]
-      | length frequentWords > 18 && text == frequentWords !! 18 -> [Word19]
-      | length frequentWords > 19 && text == frequentWords !! 19 -> [Word20]
-      | length frequentWords > 20 && text == frequentWords !! 20 -> [Word21]
-      | length frequentWords > 21 && text == frequentWords !! 21 -> [Word22]
-      | length frequentWords > 22 && text == frequentWords !! 22 -> [Word23]
-      | length frequentWords > 23 && text == frequentWords !! 23 -> [Word24]
-      | length frequentWords > 24 && text == frequentWords !! 24 -> [Word25]
-      | length frequentWords > 25 && text == frequentWords !! 25 -> [Word26]
-      | length frequentWords > 26 && text == frequentWords !! 26 -> [Word27]
-      | length frequentWords > 27 && text == frequentWords !! 27 -> [Word28]
-      | length frequentWords > 28 && text == frequentWords !! 28 -> [Word29]
-      | length frequentWords > 29 && text == frequentWords !! 29 -> [Word30]
-      | length frequentWords > 30 && text == frequentWords !! 30 -> [Word31]
-      | otherwise -> [UNKNOWN]
-
-varToToken :: Int -> [Token]
-varToToken i =
-  case i of
-    0 -> [Var'0]
-    1 -> [Var'1]
-    2 -> [Var'2]
-    3 -> [Var'3]
-    4 -> [Var'4]
-    5 -> [Var'5]
-    6 -> [Var'6]
-    _ -> [Var'unknown]
-
-selectorToToken :: U.Selector -> [Token]
-selectorToToken s = case s of
-  U.Fst -> [FST]
-  U.Snd -> [SND]
-
-wrapPreterm :: [Token] -> [Token]
-wrapPreterm xs =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOPre]
-
-splitPreterm :: U.Preterm -> [T.Text] -> [Token]
-splitPreterm preterm frequentWords = case preterm of
-  U.Var i -> wrapPreterm (varToToken i)
-  U.Con c -> wrapPreterm (textToToken c frequentWords)
-  U.Type -> wrapPreterm [Type']
-  U.Kind -> wrapPreterm [Kind']
-  U.Pi a b -> wrapPreterm ([Pi'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
-  U.Lam m -> wrapPreterm ([Lam'] ++ splitPreterm m frequentWords)
-  U.App m n -> wrapPreterm ([App'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
-  U.Not m -> wrapPreterm ([Not'] ++ splitPreterm m frequentWords)
-  U.Sigma a b -> wrapPreterm ([Sigma'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
-  U.Pair m n -> wrapPreterm ([Pair'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
-  U.Proj s m -> wrapPreterm ([Proj'] ++ selectorToToken s ++ splitPreterm m frequentWords)
-  U.Disj a b -> wrapPreterm ([Disj'] ++ splitPreterm a frequentWords ++ splitPreterm b frequentWords)
-  U.Iota s m -> wrapPreterm ([Iota'] ++ selectorToToken s ++ splitPreterm m frequentWords)
-  U.Unpack p h m n -> wrapPreterm ([Unpack'] ++ splitPreterm p frequentWords ++ splitPreterm h frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
-  U.Bot -> wrapPreterm [Bot']
-  U.Unit -> wrapPreterm [Unit']
-  U.Top -> wrapPreterm [Top']
-  U.Entity -> wrapPreterm [Entity']
-  U.Nat -> wrapPreterm [Nat']
-  U.Zero -> wrapPreterm [Zero']
-  U.Succ m -> wrapPreterm ([Succ'] ++ splitPreterm m frequentWords)
-  U.Natrec n e f -> wrapPreterm ([Natrec'] ++ splitPreterm n frequentWords ++ splitPreterm e frequentWords ++ splitPreterm f frequentWords)
-  U.Eq a m n -> wrapPreterm ([Eq'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
-  U.Refl a m -> wrapPreterm ([Refl'] ++ splitPreterm a frequentWords ++ splitPreterm m frequentWords)
-  U.Idpeel m n -> wrapPreterm ([Idpeel'] ++ splitPreterm m frequentWords ++ splitPreterm n frequentWords)
-
-splitPreterms:: [U.Preterm] -> [T.Text]-> [Token]
-splitPreterms preterms frequentWords = concatMap (\preterm -> splitPreterm preterm frequentWords) preterms
-
-wrapPair :: [Token] -> [Token]
-wrapPair xs =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOPair]
-
-splitSignature :: U.Signature -> [T.Text] -> [Token]
-splitSignature signature frequentWords = concatMap (\(name, preterm) -> wrapPair (textToToken name frequentWords ++ [COMMA] ++ splitPreterm preterm frequentWords)) signature
-
-wrapSignature :: [Token] -> [Token]
-wrapSignature xs =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOSig]
-
-wrapContext :: [Token] -> [Token]
-wrapContext xs =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOCon]
-
-wrapTerm ::[Token] -> [Token]
-wrapTerm xs =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOTerm]
-
-wrapTyp :: [Token] -> [Token]
-wrapTyp xs =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs else xs ++ [EOTyp]
-
-splitJudgment :: U.Judgment -> [T.Text] -> [Token]
-splitJudgment judgment frequentWords =
-  wrapSignature (splitSignature (U.signtr judgment) frequentWords) ++
-  wrapContext (splitPreterms (U.contxt judgment) frequentWords) ++
-  wrapTerm (splitPreterm (U.trm judgment) frequentWords) ++
-  wrapTyp (splitPreterm (U.typ judgment) frequentWords)
-
-embed :: [Token] -> [Int]
-embed = map fromEnum
+reshapeTensor :: Tensor -> IO Tensor
+reshapeTensor tensor = do
+  let shapeInput = shape tensor
+  case shapeInput of
+    [1, n] -> return $ reshape [1, n] tensor
+    [_, n] -> return $ reshape [1, n] $ sliceDim 0 (length shapeInput - 1) (length shapeInput) 1 tensor
+    _      -> error $ "Unexpected shape: " ++ show shapeInput
 
 main :: IO()
 main = do
-  trainingData <- loadActionsFromBinary saveFilePath
-  print trainingData
+  dataset <- loadActionsFromBinary saveFilePath
 
-  let wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) trainingData
-  -- print wordList
-  let frequentWords = getFrequentWords wordList
-  -- print frequentWords
+  let wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
+      frequentWords = getFrequentWords wordList
+      isParen = False
+      isSep = False
+      constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords isParen isSep) dataset
+      ruleList = map (\(_, rule) -> rule) dataset
 
-  let constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords) trainingData
-  -- print constructorData
-  let embeddedData = map (\judgment -> embed judgment) constructorData
-  -- print embeddedData
+  allData <- shuffleM $ zip constructorData ruleList
+  let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
+      (validData, testData) = splitAt (length restData * 5 `div` 10) restData
 
-  let ruleList = map (\(_, rule) -> fromEnum rule) trainingData
-  -- print ruleList
+  let iter = 10 :: Int
+      device = Device CPU 0
+      biDirectional = False
+      input_size = 128
+      numOfLayers = 1
+      hiddenSize = 128
+      has_bias = False
+      vocabSize = length tokens
+      proj_size = Nothing
+      (oneHotLabels, _) = oneHotFactory labels
+      numOfRules = length labels
+      hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
+      learningRate = 1e-3 :: Tensor
+      batchSize = 32
+  initModel <- sample hyperParams
+  let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
+  ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
+    shuffledTrainData <- shuffleM trainData
+    flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
+      if length data_list > 0 then do
+        let (oneData, restDataList) = splitAt 1 data_list
+        (loss, _, _, newState) <- predict device mdl (head oneData) oneHotLabels
+        let lossValue = (asValue loss) :: Float
+            model' = mdl { h0c0 = newState }
+            sumLoss = currentSumLoss + loss
+        if (i + 1) `mod` batchSize == 0 then do
+          u <- update model' optimizer sumLoss learningRate
+          let (newModel, _) = u
+          validLosses <- forM validData $ \dataPoint -> do
+            (loss, _, _, _) <- predict device mdl dataPoint oneHotLabels
+            let validLossValue = (asValue loss) :: Float
+            return validLossValue
+          let validLoss = sum validLosses / fromIntegral (length validLosses)
+          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral batchSize) :: Float) ++ " validLoss " ++ show validLoss
+          loop (i + 1, newModel, restDataList, sumLossValue + lossValue, validLossList ++ [validLoss], 0)
+        else do
+          loop (i + 1, model', restDataList, sumLossValue + lossValue, validLossList, sumLoss)
+      else do
+        let avgTrainLoss = sumLossValue / fromIntegral (length trainData)
+            avgValidLoss = sum validLossList / fromIntegral (length validLossList)
+        print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
+        print "----------------"
 
-  let trainingData' = zip embeddedData ruleList
-  print $ length trainingData'
+        return (mdl, (avgTrainLoss, avgValidLoss))
+
+  currentTime <- getZonedTime
+  let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
+      modelFileName = "trained_data/seq-class" ++ timeString ++ ".model"
+      graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
+      confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
+      classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
+      splitType = if isParen then "()" else if isSep then "SEP" else "EO~"
+      learningCurveTitle = "type: " ++ show splitType ++ " b: " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show input_size ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      (losses, validLosses) = unzip lossesPair
+  saveParams trainedModel modelFileName
+  drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
+
+  pairs <- forM testData $ \dataPoint -> do
+    (_, isCorrect, predictedClassIndex, _) <- predict device trainedModel dataPoint oneHotLabels
+    let label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
+    return (isCorrect, label)
+
+  let (isCorrects, predictedLabel) = unzip pairs
+
+  print $ zip predictedLabel (snd $ unzip $ testData)
+
+  let classificationReport = showClassificationReport (length labels) (zip predictedLabel (snd $ unzip $ testData))
+  T.putStr classificationReport
+
+  B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
+
+  drawConfusionMatrix confusionMatrixFileName (length labels) (zip predictedLabel (snd $ unzip $ testData))
+
+  print $ "isCorrects " ++ show isCorrects
+
+  let accuracy = fromIntegral (length (filter id isCorrects)) / fromIntegral (length isCorrects)
+  print $ "Accuracy: " ++ show accuracy
