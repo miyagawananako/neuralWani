@@ -111,9 +111,10 @@ reshapeTensor tensor = do
 
 main :: IO()
 main = do
-  dataset <- loadActionsFromBinary saveFilePath
-
-  let wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
+  waniTestDataset <- loadActionsFromBinary saveFilePath
+  typeCheckTreesDataset <- loadActionsFromBinary "data/typeCheckTrees"
+  let dataset = waniTestDataset ++ typeCheckTreesDataset
+      wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
       frequentWords = getFrequentWords wordList
       isParen = False
       isSep = False
