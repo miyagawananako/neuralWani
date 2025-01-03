@@ -78,28 +78,28 @@ instance Randomizable HypParams Params where
       <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO (Tensor, (Tensor, Tensor))
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO Tensor
 forward device model dataset = do
   let inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
       idxs = asTensor (inputIndices :: [Int])
       toDeviceIdxs = toDevice device idxs
       input = embedding' (transpose2D $ toDependent (w_emb model)) toDeviceIdxs
       dropout_prob = Nothing
-      (lstmOutput, newState) = lstmLayers (lstmParams model) dropout_prob (h0c0 model) $ input
-  pure (lstmOutput, newState)
+      (lstmOutput, _) = lstmLayers (lstmParams model) dropout_prob (h0c0 model) $ input
+  pure lstmOutput
 
-predict :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor, (Tensor, Tensor))
+predict :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor)
 predict device model dataset oneHotLabels = do
   let groundTruthOneHot = asTensor'' device (tail $ oneHotLabels $ snd dataset)
       groundTruthIndex = argmax (Dim 0) KeepDim groundTruthOneHot
-  (lstmOutput, newState) <- forward device model dataset
+  lstmOutput <- forward device model dataset
   let output = linearLayer (mlpParams model) $ lstmOutput
   reshapedOutput <- reshapeTensor output
   let output' = logSoftmax (Dim 1) reshapedOutput
       loss = nllLoss' groundTruthIndex output'
       predictedClassIndex = argmax (Dim 1) KeepDim reshapedOutput
       isCorrect = groundTruthIndex == predictedClassIndex
-  pure (loss, isCorrect, predictedClassIndex, newState)
+  pure (loss, isCorrect, predictedClassIndex)
 
 reshapeTensor :: Tensor -> IO Tensor
 reshapeTensor tensor = do
@@ -153,22 +153,21 @@ main = do
     flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
-        (loss, _, _, newState) <- predict device mdl (head oneData) oneHotLabels
+        (loss, _, _) <- predict device mdl (head oneData) oneHotLabels
         let lossValue = (asValue loss) :: Float
-            model' = mdl { h0c0 = newState }
             sumLoss = currentSumLoss + loss
         if (i + 1) `mod` batchSize == 0 then do
-          u <- update model' optimizer sumLoss learningRate
+          u <- update mdl optimizer sumLoss learningRate
           let (newModel, _) = u
           validLosses <- forM validData $ \dataPoint -> do
-            (loss, _, _, _) <- predict device mdl dataPoint oneHotLabels
+            (loss, _, _) <- predict device mdl dataPoint oneHotLabels
             let validLossValue = (asValue loss) :: Float
             return validLossValue
           let validLoss = sum validLosses / fromIntegral (length validLosses)
           print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral batchSize) :: Float) ++ " validLoss " ++ show validLoss
           loop (i + 1, newModel, restDataList, sumLossValue + lossValue, validLossList ++ [validLoss], 0)
         else do
-          loop (i + 1, model', restDataList, sumLossValue + lossValue, validLossList, sumLoss)
+          loop (i + 1, mdl, restDataList, sumLossValue + lossValue, validLossList, sumLoss)
       else do
         let avgTrainLoss = sumLossValue / fromIntegral (length augmentedData)
             avgValidLoss = sum validLossList / fromIntegral (length validLossList)
@@ -190,7 +189,7 @@ main = do
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
-    (_, isCorrect, predictedClassIndex, _) <- predict device trainedModel dataPoint oneHotLabels
+    (_, isCorrect, predictedClassIndex) <- predict device trainedModel dataPoint oneHotLabels
     let label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
     return (isCorrect, label)
 
