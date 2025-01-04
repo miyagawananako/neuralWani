@@ -6,10 +6,7 @@ import GHC.Generics                   --base
 import Control.Monad (forM)
 import Data.Function(fix)
 import System.Random.Shuffle (shuffleM)
-import qualified Data.Text as T       --text
 import qualified Data.Text.IO as T    --text
-import qualified Data.Serialize.Text as T --cereal-text
-import qualified Data.List as L       --base
 import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
@@ -18,22 +15,22 @@ import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
 import Torch.Device       (Device(..),DeviceType(..))
-import Torch.Functional   (Dim(..),cat, softmax, matmul,nllLoss',argmax,KeepDim(..), transpose2D, binaryCrossEntropyLoss', stack, embedding', logSoftmax)
+import Torch.Functional   (Dim(..),nllLoss',argmax,KeepDim(..), transpose2D, embedding', logSoftmax)
 import Torch.NN           (Parameter,Parameterized,Randomizable,sample, flattenParameters)
 import Torch.Autograd     (IndependentTensor(..),makeIndependent)
-import Torch.Optim        (GD(..), Adam(..), mkAdam)
-import Torch.Train        (update,showLoss,saveParams,loadParams)
+import Torch.Optim        (mkAdam)
+import Torch.Train        (update,saveParams,loadParams)
 import Torch.Control      (mapAccumM)
 import Torch.Tensor.TensorFactories (randnIO', asTensor'')
 import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
-import ML.Util.Dict    (sortWords,oneHotFactory) --nlp-tools
+import ML.Util.Dict    (oneHotFactory) --nlp-tools
 import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
 import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
 
-saveFilePath :: FilePath
-saveFilePath = "data/proofSearchResult"
+proofSearchResultFilePath :: FilePath
+proofSearchResultFilePath = "data/proofSearchResult"
 
 labels :: [QT.DTTrule]
 labels = [minBound..]
@@ -102,7 +99,7 @@ extractLastOutput tensor = do
 
 main :: IO()
 main = do
-  waniTestDataset <- loadActionsFromBinary saveFilePath
+  waniTestDataset <- loadActionsFromBinary proofSearchResultFilePath
   typeCheckTreesDataset <- loadActionsFromBinary "data/typeCheckTrees"
   let dataset = waniTestDataset ++ typeCheckTreesDataset
       wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
@@ -144,8 +141,8 @@ main = do
           u <- update mdl optimizer sumLoss learningRate
           let (newModel, _) = u
           validLosses <- forM validData $ \dataPoint -> do
-            (loss, _, _) <- forward device mdl dataPoint oneHotLabels
-            let validLossValue = (asValue loss) :: Float
+            (loss', _, _) <- forward device mdl dataPoint oneHotLabels
+            let validLossValue = (asValue loss') :: Float
             return validLossValue
           let validLoss = sum validLosses / fromIntegral (length validLosses)
           print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral batchSize) :: Float) ++ " validLoss " ++ show validLoss
@@ -190,5 +187,5 @@ main = do
 
   print $ "isCorrects " ++ show isCorrects
 
-  let accuracy = fromIntegral (length (filter id isCorrects)) / fromIntegral (length isCorrects)
+  let accuracy = (fromIntegral (length (filter id isCorrects)) / fromIntegral (length isCorrects)) :: Double
   print $ "Accuracy: " ++ show accuracy
