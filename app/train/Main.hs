@@ -21,10 +21,9 @@ import Torch.Autograd     (IndependentTensor(..),makeIndependent)
 import Torch.Optim        (mkAdam)
 import Torch.Train        (update,saveParams,loadParams)
 import Torch.Control      (mapAccumM)
-import Torch.Tensor.TensorFactories (randnIO', asTensor'')
+import Torch.Tensor.TensorFactories (randnIO')
 import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
-import ML.Util.Dict    (oneHotFactory) --nlp-tools
 import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
 import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
@@ -71,10 +70,9 @@ instance Randomizable HypParams Params where
       <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor)
-forward device model dataset oneHotLabels = do
-  let groundTruthOneHot = asTensor'' device (tail $ oneHotLabels $ snd dataset)
-      groundTruthIndex = argmax (Dim 0) KeepDim groundTruthOneHot
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO (Tensor, Bool, Tensor)
+forward device model dataset = do
+  let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataset) :: Int])
       inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
       idxs = asTensor (inputIndices :: [Int])
       toDeviceIdxs = toDevice device idxs
@@ -122,7 +120,6 @@ main = do
       has_bias = False
       vocabSize = length tokens
       proj_size = Nothing
-      (oneHotLabels, _) = oneHotFactory labels
       numOfRules = length labels
       hyperParams = HypParams device biDirectional emb_dim has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-3 :: Tensor
@@ -134,14 +131,14 @@ main = do
     flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
-        (loss, _, _) <- forward device mdl (head oneData) oneHotLabels
+        (loss, _, _) <- forward device mdl (head oneData)
         let lossValue = (asValue loss) :: Float
             sumLoss = currentSumLoss + loss
         if (i + 1) `mod` batchSize == 0 then do
           u <- update mdl optimizer sumLoss learningRate
           let (newModel, _) = u
           validLosses <- forM validData $ \dataPoint -> do
-            (loss', _, _) <- forward device mdl dataPoint oneHotLabels
+            (loss', _, _) <- forward device mdl dataPoint
             let validLossValue = (asValue loss') :: Float
             return validLossValue
           let validLoss = sum validLosses / fromIntegral (length validLosses)
@@ -170,7 +167,7 @@ main = do
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
-    (_, isCorrect, predictedClassIndex) <- forward device trainedModel dataPoint oneHotLabels
+    (_, isCorrect, predictedClassIndex) <- forward device trainedModel dataPoint
     let label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
     return (isCorrect, label)
 
