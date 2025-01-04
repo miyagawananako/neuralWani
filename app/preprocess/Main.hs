@@ -10,30 +10,30 @@ import Data.Store (encode)
 import ListT (toList)
 import Control.Monad (forM, foldM)
 
-saveFilePath :: FilePath
-saveFilePath = "data/proofSearchResult"
+proofSearchResultFilePath :: FilePath
+proofSearchResultFilePath = "data/proofSearchResult"
 
-makePair :: PB.TestType -> IO [(U.Judgment, QT.DTTrule)]
-makePair ts = do
-  let proofSearchResult = snd ts
+getDataFromTestType :: PB.TestType -> IO [(U.Judgment, QT.DTTrule)]
+getDataFromTestType testType = do
+  let proofSearchResult = snd testType
   resultList <- toList proofSearchResult
   foldM processTree [] resultList
   where
     processTree pairs tree = do
       let daughters = I.daughters tree
-      let newPair = (I.node tree, I.ruleName tree)
-      let updatedPairs = pairs ++ [newPair]
-      if null daughters
+          newPair = (I.node tree, I.ruleName tree)
+          updatedPairs = newPair:pairs
+      if null daughters  -- TODO: 再帰的に処理する
         then return updatedPairs
         else foldM processTree updatedPairs daughters
 
-getProofSearchResult :: [PB.TestType] -> IO [(U.Judgment, QT.DTTrule)]
-getProofSearchResult ts = do
-  results <- forM ts makePair
+getProofSearchResults :: [PB.TestType] -> IO [(U.Judgment, QT.DTTrule)]
+getProofSearchResults testType = do
+  results <- forM testType getDataFromTestType
   return $ concat results
 
 main :: IO()
 main = do
-  searchResults <- getProofSearchResult (SP.yes ++ DP.yes ++ NLPP.yes)
+  searchResults <- getProofSearchResults (SP.yes ++ DP.yes ++ NLPP.yes)
   print $ length searchResults
-  B.writeFile saveFilePath (encode searchResults)
+  B.writeFile proofSearchResultFilePath (encode searchResults)
