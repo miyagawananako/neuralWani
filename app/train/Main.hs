@@ -125,7 +125,7 @@ main = do
       numOfRules = length labels
       hyperParams = HypParams device biDirectional embDim hasBias projSize vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-3 :: Tensor
-      batchSize = 32
+      numberOfSteps = 32
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
@@ -136,7 +136,7 @@ main = do
         (loss, _, _) <- forward device mdl (head oneData)
         let lossValue = (asValue loss) :: Float
             sumLoss = currentSumLoss + loss
-        if (i + 1) `mod` batchSize == 0 then do
+        if (i + 1) `mod` numberOfSteps == 0 then do
           u <- update mdl optimizer sumLoss learningRate
           let (newModel, _) = u
           validLosses <- forM validData $ \dataPoint -> do
@@ -144,7 +144,7 @@ main = do
             let validLossValue = (asValue loss') :: Float
             return validLossValue
           let validLoss = sum validLosses / fromIntegral (length validLosses)
-          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral batchSize) :: Float) ++ " validLoss " ++ show validLoss
+          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral numberOfSteps) :: Float) ++ " validLoss " ++ show validLoss
           loop (i + 1, newModel, restDataList, sumLossValue + lossValue, validLossList ++ [validLoss], 0)
         else do
           loop (i + 1, mdl, restDataList, sumLossValue + lossValue, validLossList, sumLoss)
@@ -163,7 +163,7 @@ main = do
       confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
       classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
       splitType = if isParen then "()" else if isSep then "SEP" else "EO~"
-      learningCurveTitle = "type: " ++ show splitType ++ " b: " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      learningCurveTitle = "type: " ++ show splitType ++ " s: " ++ show numberOfSteps ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
