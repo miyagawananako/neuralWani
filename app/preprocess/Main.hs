@@ -20,12 +20,13 @@ getDataFromTestType testType = do
   foldM processTree [] resultList
   where
     processTree pairs tree = do
-      let daughters = I.daughters tree
-          newPair = (I.node tree, I.ruleName tree)
-          updatedPairs = newPair:pairs
-      if null daughters  -- TODO: 再帰的に処理する
-        then return updatedPairs
-        else foldM processTree updatedPairs daughters
+      let newPair = (I.node tree, I.ruleName tree)
+          updatedPairs = newPair : pairs
+      processDaughters updatedPairs (I.daughters tree)
+    processDaughters pairs [] = return pairs
+    processDaughters pairs (d:ds) = do
+      newPairs <- processTree pairs d
+      processDaughters newPairs ds
 
 getProofSearchResults :: [PB.TestType] -> IO [(U.Judgment, QT.DTTrule)]
 getProofSearchResults testType = do

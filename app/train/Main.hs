@@ -21,10 +21,9 @@ import Torch.Autograd     (IndependentTensor(..),makeIndependent)
 import Torch.Optim        (mkAdam)
 import Torch.Train        (update,saveParams,loadParams)
 import Torch.Control      (mapAccumM)
-import Torch.Tensor.TensorFactories (randnIO', asTensor'')
+import Torch.Tensor.TensorFactories (randnIO')
 import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
-import ML.Util.Dict    (oneHotFactory) --nlp-tools
 import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
 import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
@@ -71,10 +70,11 @@ instance Randomizable HypParams Params where
       <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor)
-forward device model dataset oneHotLabels = do
-  let groundTruthOneHot = asTensor'' device (tail $ oneHotLabels $ snd dataset)
-      groundTruthIndex = argmax (Dim 0) KeepDim groundTruthOneHot
+-- | LSTMモデルの順伝播
+-- | (loss, 予測クラスと正解クラスが一致しているかどうか, 予測クラスのインデックス)を返す
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO (Tensor, Bool, Tensor)
+forward device model dataset = do
+  let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataset) :: Int])
       inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
       idxs = asTensor (inputIndices :: [Int])
       toDeviceIdxs = toDevice device idxs
@@ -116,17 +116,16 @@ main = do
   let iter = 10 :: Int
       device = Device CUDA 0
       biDirectional = False
-      emb_dim = 128
+      embDim = 128
       numOfLayers = 1
       hiddenSize = 128
-      has_bias = False
+      hasBias = False
       vocabSize = length tokens
-      proj_size = Nothing
-      (oneHotLabels, _) = oneHotFactory labels
+      projSize = Nothing
       numOfRules = length labels
-      hyperParams = HypParams device biDirectional emb_dim has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
+      hyperParams = HypParams device biDirectional embDim hasBias projSize vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-3 :: Tensor
-      batchSize = 32
+      numberOfSteps = 32
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
@@ -134,18 +133,18 @@ main = do
     flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
-        (loss, _, _) <- forward device mdl (head oneData) oneHotLabels
+        (loss, _, _) <- forward device mdl (head oneData)
         let lossValue = (asValue loss) :: Float
             sumLoss = currentSumLoss + loss
-        if (i + 1) `mod` batchSize == 0 then do
+        if (i + 1) `mod` numberOfSteps == 0 then do
           u <- update mdl optimizer sumLoss learningRate
           let (newModel, _) = u
           validLosses <- forM validData $ \dataPoint -> do
-            (loss', _, _) <- forward device mdl dataPoint oneHotLabels
+            (loss', _, _) <- forward device mdl dataPoint
             let validLossValue = (asValue loss') :: Float
             return validLossValue
           let validLoss = sum validLosses / fromIntegral (length validLosses)
-          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral batchSize) :: Float) ++ " validLoss " ++ show validLoss
+          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral numberOfSteps) :: Float) ++ " validLoss " ++ show validLoss
           loop (i + 1, newModel, restDataList, sumLossValue + lossValue, validLossList ++ [validLoss], 0)
         else do
           loop (i + 1, mdl, restDataList, sumLossValue + lossValue, validLossList, sumLoss)
@@ -164,13 +163,13 @@ main = do
       confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
       classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
       splitType = if isParen then "()" else if isSep then "SEP" else "EO~"
-      learningCurveTitle = "type: " ++ show splitType ++ " b: " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show emb_dim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      learningCurveTitle = "type: " ++ show splitType ++ " s: " ++ show numberOfSteps ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
-    (_, isCorrect, predictedClassIndex) <- forward device trainedModel dataPoint oneHotLabels
+    (_, isCorrect, predictedClassIndex) <- forward device trainedModel dataPoint
     let label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
     return (isCorrect, label)
 
