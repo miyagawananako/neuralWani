@@ -45,7 +45,7 @@ tokens = [minBound..]
 data HypParams = HypParams {
   dev :: Device,
   bi_directional :: Bool,
-  input_size :: Int,
+  emb_dim :: Int,
   has_bias :: Bool,
   proj_size :: Maybe Int,
   vocab_size :: Int,
@@ -54,52 +54,46 @@ data HypParams = HypParams {
   num_rules :: Int
   } deriving (Eq, Show)
 
--- 学習されるパラメータmodelはこの型
 data Params = Params {
-  lstmParams :: LstmParams,
+  lstm_params :: LstmParams,
   w_emb :: Parameter,
-  mlpParams :: LinearParams,
+  mlp_params :: LinearParams,
   h0c0 :: (Tensor, Tensor)
   } deriving (Show, Generic)
 
 instance Parameterized Params
 
--- data Paramsをここでつくる
+-- Paramsを初期化する
 instance Randomizable HypParams Params where
   sample HypParams{..} = do
     randomTensor1 <- randnIO' dev [num_layers, hidden_size]
     randomTensor2 <- randnIO' dev [num_layers, hidden_size]
     Params
-      <$> sample (LstmHypParams dev bi_directional input_size hidden_size num_layers has_bias proj_size)
-      <*> (makeIndependent =<< randnIO' dev [input_size, vocab_size])
+      <$> sample (LstmHypParams dev bi_directional emb_dim hidden_size num_layers has_bias proj_size)
+      <*> (makeIndependent =<< randnIO' dev [emb_dim, vocab_size])
       <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO Tensor
-forward device model dataset = do
-  let inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor)
+forward device model dataset oneHotLabels = do
+  let groundTruthOneHot = asTensor'' device (tail $ oneHotLabels $ snd dataset)
+      groundTruthIndex = argmax (Dim 0) KeepDim groundTruthOneHot
+      inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
       idxs = asTensor (inputIndices :: [Int])
       toDeviceIdxs = toDevice device idxs
       input = embedding' (transpose2D $ toDependent (w_emb model)) toDeviceIdxs
       dropout_prob = Nothing
-      (lstmOutput, _) = lstmLayers (lstmParams model) dropout_prob (h0c0 model) $ input
-  pure lstmOutput
-
-predict :: Device -> Params -> ([Token], QT.DTTrule) -> (QT.DTTrule -> [Float]) -> IO (Tensor, Bool, Tensor)
-predict device model dataset oneHotLabels = do
-  let groundTruthOneHot = asTensor'' device (tail $ oneHotLabels $ snd dataset)
-      groundTruthIndex = argmax (Dim 0) KeepDim groundTruthOneHot
-  lstmOutput <- forward device model dataset
-  let output = linearLayer (mlpParams model) $ lstmOutput
-  reshapedOutput <- reshapeTensor output
-  let output' = logSoftmax (Dim 1) reshapedOutput
+      (lstmOutput, _) = lstmLayers (lstm_params model) dropout_prob (h0c0 model) $ input
+  let output = linearLayer (mlp_params model) $ lstmOutput
+  lastOutput <- extractLastOutput output
+  let output' = logSoftmax (Dim 1) lastOutput
       loss = nllLoss' groundTruthIndex output'
-      predictedClassIndex = argmax (Dim 1) KeepDim reshapedOutput
+      predictedClassIndex = argmax (Dim 1) KeepDim lastOutput
       isCorrect = groundTruthIndex == predictedClassIndex
   pure (loss, isCorrect, predictedClassIndex)
 
-reshapeTensor :: Tensor -> IO Tensor
-reshapeTensor tensor = do
+extractLastOutput :: Tensor -> IO Tensor
+extractLastOutput tensor = do
   let shapeInput = shape tensor
   case shapeInput of
     [1, n] -> return $ reshape [1, n] tensor
@@ -125,7 +119,7 @@ main = do
   let iter = 10 :: Int
       device = Device CPU 0
       biDirectional = False
-      input_size = 128
+      emb_dim = 128
       numOfLayers = 1
       hiddenSize = 128
       has_bias = False
@@ -133,7 +127,7 @@ main = do
       proj_size = Nothing
       (oneHotLabels, _) = oneHotFactory labels
       numOfRules = length labels
-      hyperParams = HypParams device biDirectional input_size has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
+      hyperParams = HypParams device biDirectional emb_dim has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-3 :: Tensor
       batchSize = 32
   initModel <- sample hyperParams
@@ -143,14 +137,14 @@ main = do
     flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
-        (loss, _, _) <- predict device mdl (head oneData) oneHotLabels
+        (loss, _, _) <- forward device mdl (head oneData) oneHotLabels
         let lossValue = (asValue loss) :: Float
             sumLoss = currentSumLoss + loss
         if (i + 1) `mod` batchSize == 0 then do
           u <- update mdl optimizer sumLoss learningRate
           let (newModel, _) = u
           validLosses <- forM validData $ \dataPoint -> do
-            (loss, _, _) <- predict device mdl dataPoint oneHotLabels
+            (loss, _, _) <- forward device mdl dataPoint oneHotLabels
             let validLossValue = (asValue loss) :: Float
             return validLossValue
           let validLoss = sum validLosses / fromIntegral (length validLosses)
@@ -173,13 +167,13 @@ main = do
       confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
       classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
       splitType = if isParen then "()" else if isSep then "SEP" else "EO~"
-      learningCurveTitle = "type: " ++ show splitType ++ " b: " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show input_size ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      learningCurveTitle = "type: " ++ show splitType ++ " b: " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show emb_dim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
-    (_, isCorrect, predictedClassIndex) <- predict device trainedModel dataPoint oneHotLabels
+    (_, isCorrect, predictedClassIndex) <- forward device trainedModel dataPoint oneHotLabels
     let label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
     return (isCorrect, label)
 
