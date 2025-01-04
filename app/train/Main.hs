@@ -62,12 +62,13 @@ instance Parameterized Params
 -- Paramsを初期化する
 instance Randomizable HypParams Params where
   sample HypParams{..} = do
-    randomTensor1 <- randnIO' dev [num_layers, hidden_size]
-    randomTensor2 <- randnIO' dev [num_layers, hidden_size]
+    let d = if bi_directional then 2 else 1
+    randomTensor1 <- randnIO' dev [d * num_layers, hidden_size]
+    randomTensor2 <- randnIO' dev [d * num_layers, hidden_size]
     Params
       <$> sample (LstmHypParams dev bi_directional emb_dim hidden_size num_layers has_bias proj_size)
       <*> (makeIndependent =<< randnIO' dev [emb_dim, vocab_size])
-      <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
+      <*> sample (LinearHypParams dev has_bias (d * hidden_size) num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
 -- | LSTMモデルの順伝播
@@ -115,16 +116,16 @@ main = do
 
   let iter = 10 :: Int
       device = Device CPU 0
-      biDirectional = False
-      embDim = 128
-      numOfLayers = 1
+      biDirectional = True
+      embDim = 256
+      numOfLayers = 2
       hiddenSize = 128
       hasBias = False
       vocabSize = length tokens
       projSize = Nothing
       numOfRules = length labels
       hyperParams = HypParams device biDirectional embDim hasBias projSize vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = 1e-3 :: Tensor
+      learningRate = 5e-4 :: Tensor
       numberOfSteps = 32
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
