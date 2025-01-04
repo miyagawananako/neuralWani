@@ -70,6 +70,8 @@ instance Randomizable HypParams Params where
       <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
+-- | LSTMモデルの順伝播
+-- | (loss, 予測クラスと正解クラスが一致しているかどうか, 予測クラスのインデックス)を返す
 forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO (Tensor, Bool, Tensor)
 forward device model dataset = do
   let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataset) :: Int])
