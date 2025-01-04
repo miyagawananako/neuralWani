@@ -114,14 +114,14 @@ main = do
   let iter = 10 :: Int
       device = Device CPU 0
       biDirectional = False
-      emb_dim = 128
+      embDim = 128
       numOfLayers = 1
       hiddenSize = 128
-      has_bias = False
+      hasBias = False
       vocabSize = length tokens
-      proj_size = Nothing
+      projSize = Nothing
       numOfRules = length labels
-      hyperParams = HypParams device biDirectional emb_dim has_bias proj_size vocabSize numOfLayers hiddenSize numOfRules
+      hyperParams = HypParams device biDirectional embDim hasBias projSize vocabSize numOfLayers hiddenSize numOfRules
       learningRate = 1e-3 :: Tensor
       batchSize = 32
   initModel <- sample hyperParams
@@ -161,7 +161,7 @@ main = do
       confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
       classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
       splitType = if isParen then "()" else if isSep then "SEP" else "EO~"
-      learningCurveTitle = "type: " ++ show splitType ++ " b: " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show emb_dim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      learningCurveTitle = "type: " ++ show splitType ++ " b: " ++ show batchSize ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
