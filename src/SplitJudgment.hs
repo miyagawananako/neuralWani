@@ -8,9 +8,6 @@ module SplitJudgment
     , getFrequentWords
     , Token(..)
     , splitJudgment
-    , countRule
-    , splitByLabel
-    , smoothData
     ) where
 
 import qualified DTS.QueryTypes as QT
@@ -19,12 +16,9 @@ import qualified Data.ByteString as B --bytestring
 import qualified Data.Text.Lazy as T  --text
 import Data.Store (decode)
 import qualified Data.Map.Strict as Map
-import Data.List (sortOn)
-import Data.Ord (Down(..))
+import qualified Data.List as List
+import Data.Ord
 import qualified Data.Set as Set
-import Data.Function (fix)
-import System.Random (randomRIO)
-import System.Random.Shuffle (shuffleM)
 
 loadActionsFromBinary :: FilePath -> IO [(U.Judgment, QT.DTTrule)]
 loadActionsFromBinary filepath = do
@@ -74,7 +68,7 @@ getWordsFromJudgment judgment =
       getWordsFromPreterm (U.typ judgment)
 
 getFrequentWords :: [T.Text] -> [T.Text]
-getFrequentWords frequentWords = take 31 $ map fst $ sortOn (Down . snd) $ Map.toList wordFreqMap
+getFrequentWords frequentWords = take 31 $ map fst $ List.sortOn (Down . snd) $ Map.toList wordFreqMap
   where
     wordFreqMap :: Map.Map T.Text Int
     wordFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords
@@ -208,34 +202,3 @@ splitJudgment judgment frequentWords isParen isSep =
   wrapContext (splitPreterms (U.contxt judgment) frequentWords isParen isSep) isParen isSep ++
   wrapTerm (splitPreterm (U.trm judgment) frequentWords isParen isSep) isParen isSep ++
   wrapTyp (splitPreterm (U.typ judgment) frequentWords isParen isSep) isParen isSep
-
-countRule :: [QT.DTTrule] -> [(QT.DTTrule, Int)]
-countRule rules = sortOn (Down . snd) $ Map.toList ruleFreqMap
-  where
-    ruleFreqMap :: Map.Map QT.DTTrule Int
-    ruleFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty rules
-
-splitByLabel :: [([Token], QT.DTTrule)] -> IO [(QT.DTTrule, [([Token], QT.DTTrule)])]
-splitByLabel dataset = do
-  flip fix (0, dataset, []) $ \loop (i, datalist, splittedData) -> do
-    if datalist == [] then return splittedData
-    else do
-      let (tokens, rule) = head datalist
-          data' = (tokens, rule)
-          rest = tail datalist
-          splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
-      loop (i + 1, rest, splittedData')
-
--- (training, validation, test)
-smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
-smoothData splittedData threshold = do
-  flip fix (0, splittedData, [], [], []) $ \loop (i, datalist, trainDataList, validDataList, testDataList) -> do
-    if datalist == [] then return (trainDataList, validDataList, testDataList)
-    else do
-      let (rule, datas) = head datalist
-          rest = tail datalist
-      shuffledData <- shuffleM datas
-      let takeThreshold = take threshold shuffledData
-          (trainData, restData) = splitAt (length takeThreshold * 7 `div` 10) takeThreshold
-          (validData, testData) = splitAt (length restData * 5 `div` 10) restData
-      loop (i + 1, rest, trainDataList ++ trainData, validDataList ++ validData, testDataList ++ testData)

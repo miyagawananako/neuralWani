@@ -13,9 +13,10 @@ import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
 import qualified Data.Text.Encoding as E
-import qualified Data.Map as Map      --containers
-import Data.List (sortOn)
+-- import qualified Data.Map as Map      --containers
 import Data.Ord (Down(..))
+import qualified Data.Map.Strict as Map
+import qualified Data.List as List
 import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
@@ -31,7 +32,7 @@ import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
-import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment, countRule, splitByLabel, smoothData)
+import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
 
 proofSearchResultFilePath :: FilePath
 proofSearchResultFilePath = "data/proofSearchResult"
@@ -103,6 +104,37 @@ extractLastOutput tensor = do
     [_, n] -> return $ reshape [1, n] $ sliceDim 0 (length shapeInput - 1) (length shapeInput) 1 tensor
     _      -> error $ "Unexpected shape: " ++ show shapeInput
 
+countRule :: [QT.DTTrule] -> [(QT.DTTrule, Int)]
+countRule rules = List.sortOn (Down . snd) $ Map.toList ruleFreqMap
+  where
+    ruleFreqMap :: Map.Map QT.DTTrule Int
+    ruleFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty rules
+
+splitByLabel :: [([Token], QT.DTTrule)] -> IO [(QT.DTTrule, [([Token], QT.DTTrule)])]
+splitByLabel dataset = do
+  flip fix (0 :: Int, dataset, []) $ \loop (i, datalist, splittedData) -> do
+    if datalist == [] then return splittedData
+    else do
+      let (tokens', rule) = head datalist
+          data' = (tokens', rule)
+          rest = tail datalist
+          splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
+      loop (i + 1, rest, splittedData')
+
+-- (training, validation, test)
+smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
+smoothData splittedData threshold = do
+  flip fix (0 :: Int, splittedData, [], [], []) $ \loop (i, datalist, trainDataList, validDataList, testDataList) -> do
+    if datalist == [] then return (trainDataList, validDataList, testDataList)
+    else do
+      let (_, datas) = head datalist
+          rest = tail datalist
+      shuffledData <- shuffleM datas
+      let takeThreshold = take threshold shuffledData
+          (trainData, restData) = splitAt (length takeThreshold * 7 `div` 10) takeThreshold
+          (validData, testData) = splitAt (length restData * 5 `div` 10) restData
+      loop (i + 1, rest, trainDataList ++ trainData, validDataList ++ validData, testDataList ++ testData)
+
 main :: IO()
 main = do
   waniTestDataset <- loadActionsFromBinary proofSearchResultFilePath
@@ -120,15 +152,11 @@ main = do
 
   let countedRules = countRule ruleList
   print $ "countedRules " ++ show countedRules
-  -- [(SigmaF,5775),(PiE,5074),(Var,4840),(EnumF,4561),(Con,2753),(SigmaE,543),(PiF,493),(PiI,239),(TypeF,140),(IqE,42),(SigmaI,9),(IqF,3)]
   splitedData <- splitByLabel (zip constructorData ruleList)
-  (trainData, validData, testData) <- smoothData splitedData 400
-  print $ "trainData " ++ show (length trainData)
-  print $ "validData " ++ show (length validData)
-  print $ "testData " ++ show (length testData)
+  (trainData, validData, testData) <- smoothData splitedData 450
 
-  let countedRulesTrain = countRule $ map (\(_, rule) -> rule) trainData
-  print $ "countedRulesTrain " ++ show countedRulesTrain
+  let countedTrainRules = countRule $ map (\(_, rule) -> rule) trainData
+  print $ "countedRules (training data) " ++ show countedTrainRules
 
   let iter = 5 :: Int
       device = Device CPU 0
