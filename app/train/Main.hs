@@ -13,7 +13,6 @@ import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
 import qualified Data.Text.Encoding as E
--- import qualified Data.Map as Map      --containers
 import Data.Ord (Down(..))
 import qualified Data.Map.Strict as Map
 import qualified Data.List as List
@@ -158,7 +157,7 @@ main = do
   let countedTrainRules = countRule $ map (\(_, rule) -> rule) trainData
   print $ "countedRules (training data) " ++ show countedTrainRules
 
-  let iter = 5 :: Int
+  let iter = 10 :: Int
       device = Device CPU 0
       biDirectional = True
       embDim = 256
