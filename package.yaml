@@ -34,6 +34,8 @@ dependencies:
 - random-shuffle
 - cereal-text
 - time
+- directory
+- filepath
 
 ghc-options:
 - -Wall
