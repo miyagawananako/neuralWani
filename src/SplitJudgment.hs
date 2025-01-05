@@ -16,8 +16,8 @@ import qualified Data.ByteString as B --bytestring
 import qualified Data.Text.Lazy as T  --text
 import Data.Store (decode)
 import qualified Data.Map.Strict as Map
-import Data.List (sortOn)
-import Data.Ord (Down(..))
+import qualified Data.List as List
+import Data.Ord
 import qualified Data.Set as Set
 
 loadActionsFromBinary :: FilePath -> IO [(U.Judgment, QT.DTTrule)]
@@ -68,7 +68,7 @@ getWordsFromJudgment judgment =
       getWordsFromPreterm (U.typ judgment)
 
 getFrequentWords :: [T.Text] -> [T.Text]
-getFrequentWords frequentWords = take 31 $ map fst $ sortOn (Down . snd) $ Map.toList wordFreqMap
+getFrequentWords frequentWords = take 31 $ map fst $ List.sortOn (Down . snd) $ Map.toList wordFreqMap
   where
     wordFreqMap :: Map.Map T.Text Int
     wordFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords

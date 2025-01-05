@@ -45,6 +45,7 @@ library
     , lightblue >=0.3
     , list-t
     , nlp-tools
+    , random
     , random-shuffle
     , store
     , text
@@ -74,6 +75,7 @@ executable preprocess-exe
     , list-t
     , neuralWani
     , nlp-tools
+    , random
     , random-shuffle
     , store
     , text
@@ -103,6 +105,7 @@ executable train-exe
     , list-t
     , neuralWani
     , nlp-tools
+    , random
     , random-shuffle
     , store
     , text
@@ -133,6 +136,7 @@ test-suite test
     , list-t
     , neuralWani
     , nlp-tools
+    , random
     , random-shuffle
     , store
     , text
