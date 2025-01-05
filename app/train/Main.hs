@@ -29,7 +29,7 @@ import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
-import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment, countRule, copyData, replaceData)
+import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment, countRule, splitByLabel, smoothData)
 
 proofSearchResultFilePath :: FilePath
 proofSearchResultFilePath = "data/proofSearchResult"
@@ -104,8 +104,10 @@ extractLastOutput tensor = do
 main :: IO()
 main = do
   waniTestDataset <- loadActionsFromBinary proofSearchResultFilePath
-  typeCheckTreesDataset <- loadActionsFromBinary "data/typeCheckTrees"
-  let dataset = waniTestDataset ++ typeCheckTreesDataset
+  typeCheckTreesDataset <- loadActionsFromBinary "data/typeCheckTrees"  -- Verbs.xml
+  adjectiveDataset <- loadActionsFromBinary "data/JSeM/Adjectives114 3179"
+  compoundAdjectiveDataset <- loadActionsFromBinary "data/JSeM/CompoundAdjective267 17610"
+  let dataset = waniTestDataset ++ typeCheckTreesDataset ++ adjectiveDataset ++ compoundAdjectiveDataset
       wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
       frequentWords = getFrequentWords wordList
       isParen = False
@@ -115,15 +117,15 @@ main = do
 
   let countedRules = countRule ruleList
   print $ "countedRules " ++ show countedRules
-
-  allData <- shuffleM $ zip constructorData ruleList
-  let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
-      (validData, testData) = splitAt (length restData * 5 `div` 10) restData
+  -- [(SigmaF,5775),(PiE,5074),(Var,4840),(EnumF,4561),(Con,2753),(SigmaE,543),(PiF,493),(PiI,239),(TypeF,140),(IqE,42),(SigmaI,9),(IqF,3)]
+  splitedData <- splitByLabel (zip constructorData ruleList)
+  (trainData, validData, testData) <- smoothData splitedData 400
+  print $ "trainData " ++ show (length trainData)
+  print $ "validData " ++ show (length validData)
+  print $ "testData " ++ show (length testData)
 
   let countedRulesTrain = countRule $ map (\(_, rule) -> rule) trainData
   print $ "countedRulesTrain " ++ show countedRulesTrain
-
-  augmentedData <- replaceData trainData
 
   let iter = 5 :: Int
       device = Device CPU 0
@@ -141,7 +143,7 @@ main = do
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-    shuffledTrainData <- shuffleM augmentedData
+    shuffledTrainData <- shuffleM trainData
     flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
@@ -161,7 +163,7 @@ main = do
         else do
           loop (i + 1, mdl, restDataList, sumLossValue + lossValue, validLossList, sumLoss)
       else do
-        let avgTrainLoss = sumLossValue / fromIntegral (length augmentedData)
+        let avgTrainLoss = sumLossValue / fromIntegral (length trainData)
             avgValidLoss = sum validLossList / fromIntegral (length validLossList)
         print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
         print "----------------"
