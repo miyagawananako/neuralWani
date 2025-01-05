@@ -6,6 +6,8 @@ import GHC.Generics                   --base
 import Control.Monad (forM)
 import Data.Function(fix)
 import System.Random.Shuffle (shuffleM)
+import System.Directory (listDirectory)
+import System.FilePath ((</>))
 import qualified Data.Text.IO as T    --text
 import Data.Time.LocalTime
 import qualified Data.Time as Time
@@ -104,10 +106,11 @@ extractLastOutput tensor = do
 main :: IO()
 main = do
   waniTestDataset <- loadActionsFromBinary proofSearchResultFilePath
-  typeCheckTreesDataset <- loadActionsFromBinary "data/typeCheckTrees"  -- Verbs.xml
-  adjectiveDataset <- loadActionsFromBinary "data/JSeM/Adjectives114 3179"
-  compoundAdjectiveDataset <- loadActionsFromBinary "data/JSeM/CompoundAdjective267 17610"
-  let dataset = waniTestDataset ++ typeCheckTreesDataset ++ adjectiveDataset ++ compoundAdjectiveDataset
+
+  jsemFiles <- listDirectory "data/JSeM/"
+  jsemDatasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
+
+  let dataset = waniTestDataset ++ concat jsemDatasets
       wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
       frequentWords = getFrequentWords wordList
       isParen = False

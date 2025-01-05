@@ -35,6 +35,8 @@ dependencies:
 - cereal-text
 - time
 - random
+- directory
+- filepath
 
 ghc-options:
 - -Wall

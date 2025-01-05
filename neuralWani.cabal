@@ -38,6 +38,8 @@ library
     , bytestring
     , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
@@ -65,6 +67,8 @@ executable preprocess-exe
     , bytestring
     , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
@@ -93,6 +97,8 @@ executable train-exe
     , bytestring
     , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
@@ -122,6 +128,8 @@ test-suite test
     , bytestring
     , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
