@@ -178,11 +178,11 @@ main = do
 
   currentTime <- getZonedTime
   let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
-      device = Device CPU 0
+      device = Device CUDA 0
       biDirectional = True
       embDim = 256
       numOfLayers = 2
-      hiddenSize = 128
+      hiddenSize = 512
       hasBias = False
       vocabSize = length tokens
       projSize = Nothing
@@ -196,7 +196,7 @@ main = do
     let validData = crossValidationData !! (epoc - 1)
         trainData = concat $ take (epoc - 1) crossValidationData ++ drop epoc crossValidationData
     shuffledTrainData <- shuffleM trainData
-    flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
+    flip fix (0 :: Int, model, shuffledTrainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
         (loss, _) <- forward device mdl (head oneData)
@@ -205,29 +205,28 @@ main = do
         if (i + 1) `mod` numberOfSteps == 0 then do
           u <- update mdl optimizer sumLoss learningRate
           let (newModel, _) = u
-          pairs <- forM validData $ \dataPoint -> do
-            (loss', predictedClassIndex) <- forward device mdl dataPoint
-            let validLossValue = (asValue loss') :: Float
-                label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
-            return (validLossValue, label)
-          let (validLosses, predictedLabel) = unzip pairs
-              validLoss = sum validLosses / fromIntegral (length validLosses)
-              classificationReport = showClassificationReport (length labels) (zip predictedLabel (snd $ unzip $ validData))
-          let confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ "_epoc" ++ show epoc ++ ".png"
-              classificationReportFileName = "trained_data/classification-report" ++ timeString ++ "_epoc" ++ show epoc ++ ".txt"
-          B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
-          drawConfusionMatrix confusionMatrixFileName (length labels) (zip predictedLabel (snd $ unzip $ validData))
-          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral numberOfSteps) :: Float) ++ " validLoss " ++ show validLoss
-          loop (i + 1, newModel, restDataList, sumLossValue + lossValue, validLossList ++ [validLoss], 0)
+          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral numberOfSteps) :: Float)
+          loop (i + 1, newModel, restDataList, sumLossValue + lossValue, 0)
         else do
-          loop (i + 1, mdl, restDataList, sumLossValue + lossValue, validLossList, sumLoss)
+          loop (i + 1, mdl, restDataList, sumLossValue + lossValue, sumLoss)
       else do
+        pairs <- forM validData $ \dataPoint -> do
+          (loss', predictedClassIndex) <- forward device mdl dataPoint
+          let validLossValue = (asValue loss') :: Float
+              label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
+          return (validLossValue, label)
+        let (validLosses, predictedLabel) = unzip pairs
+            validLoss = sum validLosses / fromIntegral (length validLosses)
+            classificationReport = showClassificationReport (length labels) (zip predictedLabel (snd $ unzip $ validData))
+            confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ "_epoc" ++ show epoc ++ ".png"
+            classificationReportFileName = "trained_data/classification-report" ++ timeString ++ "_epoc" ++ show epoc ++ ".txt"
+        B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
+        drawConfusionMatrix confusionMatrixFileName (length labels) (zip predictedLabel (snd $ unzip $ validData))
         let avgTrainLoss = sumLossValue / fromIntegral (length trainData)
-            avgValidLoss = sum validLossList / fromIntegral (length validLossList)
-        print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
+        print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show validLoss
         print "----------------"
 
-        return (mdl, (avgTrainLoss, avgValidLoss))
+        return (mdl, (avgTrainLoss, validLoss))
 
   let modelFileName = "trained_data/seq-class" ++ timeString ++ ".model"
       graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
