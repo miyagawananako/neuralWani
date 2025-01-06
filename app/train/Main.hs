@@ -6,11 +6,16 @@ import GHC.Generics                   --base
 import Control.Monad (forM)
 import Data.Function(fix)
 import System.Random.Shuffle (shuffleM)
+import System.Directory (listDirectory)
+import System.FilePath ((</>))
 import qualified Data.Text.IO as T    --text
 import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
 import qualified Data.Text.Encoding as E
+import Data.Ord (Down(..))
+import qualified Data.Map.Strict as Map
+import qualified Data.List as List
 import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
@@ -62,12 +67,13 @@ instance Parameterized Params
 -- Paramsを初期化する
 instance Randomizable HypParams Params where
   sample HypParams{..} = do
-    randomTensor1 <- randnIO' dev [num_layers, hidden_size]
-    randomTensor2 <- randnIO' dev [num_layers, hidden_size]
+    let d = if bi_directional then 2 else 1
+    randomTensor1 <- randnIO' dev [d * num_layers, hidden_size]
+    randomTensor2 <- randnIO' dev [d * num_layers, hidden_size]
     Params
       <$> sample (LstmHypParams dev bi_directional emb_dim hidden_size num_layers has_bias proj_size)
       <*> (makeIndependent =<< randnIO' dev [emb_dim, vocab_size])
-      <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
+      <*> sample (LinearHypParams dev has_bias (d * hidden_size) num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
 -- | LSTMモデルの順伝播
@@ -97,11 +103,45 @@ extractLastOutput tensor = do
     [_, n] -> return $ reshape [1, n] $ sliceDim 0 (length shapeInput - 1) (length shapeInput) 1 tensor
     _      -> error $ "Unexpected shape: " ++ show shapeInput
 
+countRule :: [QT.DTTrule] -> [(QT.DTTrule, Int)]
+countRule rules = List.sortOn (Down . snd) $ Map.toList ruleFreqMap
+  where
+    ruleFreqMap :: Map.Map QT.DTTrule Int
+    ruleFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty rules
+
+splitByLabel :: [([Token], QT.DTTrule)] -> IO [(QT.DTTrule, [([Token], QT.DTTrule)])]
+splitByLabel dataset = do
+  flip fix (0 :: Int, dataset, []) $ \loop (i, datalist, splittedData) -> do
+    if datalist == [] then return splittedData
+    else do
+      let (tokens', rule) = head datalist
+          data' = (tokens', rule)
+          rest = tail datalist
+          splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
+      loop (i + 1, rest, splittedData')
+
+-- (training, validation, test)
+smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
+smoothData splittedData threshold = do
+  flip fix (0 :: Int, splittedData, [], [], []) $ \loop (i, datalist, trainDataList, validDataList, testDataList) -> do
+    if datalist == [] then return (trainDataList, validDataList, testDataList)
+    else do
+      let (_, datas) = head datalist
+          rest = tail datalist
+      shuffledData <- shuffleM datas
+      let takeThreshold = take threshold shuffledData
+          (trainData, restData) = splitAt (length takeThreshold * 7 `div` 10) takeThreshold
+          (validData, testData) = splitAt (length restData * 5 `div` 10) restData
+      loop (i + 1, rest, trainDataList ++ trainData, validDataList ++ validData, testDataList ++ testData)
+
 main :: IO()
 main = do
   waniTestDataset <- loadActionsFromBinary proofSearchResultFilePath
-  typeCheckTreesDataset <- loadActionsFromBinary "data/typeCheckTrees"
-  let dataset = waniTestDataset ++ typeCheckTreesDataset
+
+  jsemFiles <- listDirectory "data/JSeM/"
+  jsemDatasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
+
+  let dataset = waniTestDataset ++ concat jsemDatasets
       wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
       frequentWords = getFrequentWords wordList
       isParen = False
@@ -109,22 +149,26 @@ main = do
       constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords isParen isSep) dataset
       ruleList = map (\(_, rule) -> rule) dataset
 
-  allData <- shuffleM $ zip constructorData ruleList
-  let (trainData, restData) = splitAt (length allData * 7 `div` 10) allData
-      (validData, testData) = splitAt (length restData * 5 `div` 10) restData
+  let countedRules = countRule ruleList
+  print $ "countedRules " ++ show countedRules
+  splitedData <- splitByLabel (zip constructorData ruleList)
+  (trainData, validData, testData) <- smoothData splitedData 450
+
+  let countedTrainRules = countRule $ map (\(_, rule) -> rule) trainData
+  print $ "countedRules (training data) " ++ show countedTrainRules
 
   let iter = 10 :: Int
-      device = Device CUDA 0
-      biDirectional = False
-      embDim = 128
-      numOfLayers = 1
+      device = Device CPU 0
+      biDirectional = True
+      embDim = 256
+      numOfLayers = 2
       hiddenSize = 128
       hasBias = False
       vocabSize = length tokens
       projSize = Nothing
       numOfRules = length labels
       hyperParams = HypParams device biDirectional embDim hasBias projSize vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = 1e-3 :: Tensor
+      learningRate = 5e-4 :: Tensor
       numberOfSteps = 32
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)

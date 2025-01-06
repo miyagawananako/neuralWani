@@ -38,11 +38,14 @@ library
     , bytestring
     , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
     , list-t
     , nlp-tools
+    , random
     , random-shuffle
     , store
     , text
@@ -64,12 +67,15 @@ executable preprocess-exe
     , bytestring
     , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
     , list-t
     , neuralWani
     , nlp-tools
+    , random
     , random-shuffle
     , store
     , text
@@ -91,12 +97,15 @@ executable train-exe
     , bytestring
     , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
     , list-t
     , neuralWani
     , nlp-tools
+    , random
     , random-shuffle
     , store
     , text
@@ -119,12 +128,15 @@ test-suite test
     , bytestring
     , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
     , list-t
     , neuralWani
     , nlp-tools
+    , random
     , random-shuffle
     , store
     , text
