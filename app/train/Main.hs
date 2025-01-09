@@ -166,8 +166,9 @@ main = do
       bias = read (args !! 4) :: Bool
       lr = read (args !! 5) :: Float
       steps = read (args !! 6) :: Int
-      isParen = read (args !! 7) :: Bool
-      isSep = read (args !! 8) :: Bool
+      iter = read (args !! 7) :: Int
+      isParen = read (args !! 8) :: Bool
+      isSep = read (args !! 9) :: Bool
   waniTestDataset <- loadActionsFromBinary proofSearchResultFilePath
 
   jsemFiles <- listDirectory "data/JSeM/"
@@ -182,7 +183,6 @@ main = do
   let countedRules = countRule ruleList
   print $ "countedRules " ++ show countedRules
   splitedData <- splitByLabel (zip constructorData ruleList)
-  let iter = 5 :: Int
   crossValidationData <- splitDataForCrossValidation splitedData 450 iter
 
   currentTime <- getZonedTime
@@ -202,6 +202,7 @@ main = do
   print $ "hyperParams " ++ show hyperParams
   print $ "learningRate " ++ show learningRate
   print $ "numberOfSteps " ++ show numberOfSteps
+  print $ "iter " ++ show iter
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
