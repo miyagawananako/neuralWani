@@ -197,7 +197,7 @@ main = do
       projSize = Nothing
       numOfRules = length labels
       hyperParams = HypParams device biDirectional embDim hasBias projSize vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = asTensor lr
+      learningRate = toDevice device (asTensor (lr :: Float))
       numberOfSteps = steps
   print $ "hyperParams " ++ show hyperParams
   print $ "learningRate " ++ show learningRate
