@@ -133,9 +133,7 @@ selectorToToken s = case s of
   U.Snd -> [SND]
 
 wrapPreterm :: [Token] -> Bool -> Bool -> [Token]
-wrapPreterm xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOPre]
+wrapPreterm xs isParen isSep = xs
 
 splitPreterm :: U.Preterm -> [T.Text] -> Bool -> Bool -> [Token]
 splitPreterm preterm frequentWords isParen isSep = case preterm of
@@ -169,32 +167,22 @@ splitPreterms:: [U.Preterm] -> [T.Text] -> Bool -> Bool -> [Token]
 splitPreterms preterms frequentWords isParen isSep = concatMap (\preterm -> splitPreterm preterm frequentWords isParen isSep) preterms
 
 wrapPair :: [Token] -> Bool -> Bool -> [Token]
-wrapPair xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOPair]
+wrapPair xs isParen isSep = xs
 
 splitSignature :: U.Signature -> [T.Text] -> Bool -> Bool -> [Token]
 splitSignature signature frequentWords isParen isSep = concatMap (\(name, preterm) -> wrapPair (textToToken name frequentWords ++ [COMMA] ++ splitPreterm preterm frequentWords isParen isSep) isParen isSep) signature
 
 wrapSignature :: [Token] -> Bool -> Bool -> [Token]
-wrapSignature xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOSig]
+wrapSignature xs isParen isSep = xs
 
 wrapContext :: [Token] -> Bool -> Bool -> [Token]
-wrapContext xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOCon]
+wrapContext xs isParen isSep = xs
 
 wrapTerm ::[Token] -> Bool -> Bool -> [Token]
-wrapTerm xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOTerm]
+wrapTerm xs isParen isSep = xs
 
 wrapTyp :: [Token] -> Bool -> Bool -> [Token]
-wrapTyp xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs else xs ++ [EOTyp]
+wrapTyp xs isParen isSep = xs
 
 splitJudgment :: U.Judgment -> [T.Text] -> Bool -> Bool -> [Token]
 splitJudgment judgment frequentWords isParen isSep =
