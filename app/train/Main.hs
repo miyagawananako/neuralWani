@@ -73,23 +73,22 @@ instance Randomizable HypParams Params where
     Params
       <$> sample (LstmHypParams dev bi_directional emb_dim hidden_size num_layers has_bias proj_size)
       <*> (makeIndependent =<< randnIO' dev [emb_dim, vocab_size])
-      <*> sample (LinearHypParams dev has_bias (d * hidden_size) num_rules)
+      <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
 -- | LSTMモデルの順伝播
 -- | (loss, 予測クラスと正解クラスが一致しているかどうか, 予測クラスのインデックス)を返す
 forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO (Tensor, Bool, Tensor)
-forward device model dataset = do
+forward device Params{..} dataset = do
   let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataset) :: Int])
       inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
-      idxs = asTensor (inputIndices :: [Int])
-      toDeviceIdxs = toDevice device idxs
-      input = embedding' (transpose2D $ toDependent (w_emb model)) toDeviceIdxs
+      idxs = toDevice device $ asTensor (inputIndices :: [Int])
+      input = embedding' (transpose2D $ toDependent w_emb) idxs
       dropout_prob = Nothing
-      (lstmOutput, _) = lstmLayers (lstm_params model) dropout_prob (h0c0 model) $ input
-  let output = linearLayer (mlp_params model) $ lstmOutput
-  lastOutput <- extractLastOutput output
-  let output' = logSoftmax (Dim 1) lastOutput
+      (_, (h0, _)) = lstmLayers lstm_params dropout_prob h0c0 $ input
+  lastOutput <- extractLastOutput h0
+  let output = linearLayer mlp_params lastOutput
+      output' = logSoftmax (Dim 1) output
       loss = nllLoss' groundTruthIndex output'
       predictedClassIndex = argmax (Dim 1) KeepDim lastOutput
       isCorrect = groundTruthIndex == predictedClassIndex
