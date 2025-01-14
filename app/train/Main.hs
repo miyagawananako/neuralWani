@@ -105,28 +105,26 @@ countRule rules = List.sortOn (Down . snd) $ Map.toList ruleFreqMap
 
 splitByLabel :: [([Token], QT.DTTrule)] -> IO [(QT.DTTrule, [([Token], QT.DTTrule)])]
 splitByLabel dataset = do
-  flip fix (0 :: Int, dataset, []) $ \loop (i, datalist, splittedData) -> do
-    if datalist == [] then return splittedData
+  flip fix (0 :: Int, dataset, []) $ \loop (i, remainingData, splittedData) -> do
+    if remainingData == [] then return splittedData
     else do
-      let (tokens', rule) = head datalist
+      let (tokens', rule) = head remainingData
           data' = (tokens', rule)
-          rest = tail datalist
           splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
-      loop (i + 1, rest, splittedData')
+      loop (i + 1, tail remainingData, splittedData')
 
 -- (training, validation, test)
 smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
 smoothData splittedData threshold = do
-  flip fix (0 :: Int, splittedData, [], [], []) $ \loop (i, datalist, trainDataList, validDataList, testDataList) -> do
-    if datalist == [] then return (trainDataList, validDataList, testDataList)
+  flip fix (0 :: Int, splittedData, [], [], []) $ \loop (i, remainingData, trainDataAcc, validDataAcc, testDataAcc) -> do
+    if remainingData == [] then return (trainDataAcc, validDataAcc, testDataAcc)
     else do
-      let (_, datas) = head datalist
-          rest = tail datalist
-      shuffledData <- shuffleM datas
-      let takeThreshold = take threshold shuffledData
-          (trainData, restData) = splitAt (length takeThreshold * 7 `div` 10) takeThreshold
+      let (_, dataList) = head remainingData
+      shuffledData <- shuffleM dataList
+      let limitedData = take threshold shuffledData
+          (trainData, restData) = splitAt (length limitedData * 7 `div` 10) limitedData
           (validData, testData) = splitAt (length restData * 5 `div` 10) restData
-      loop (i + 1, rest, trainDataList ++ trainData, validDataList ++ validData, testDataList ++ testData)
+      loop (i + 1, tail remainingData, trainDataAcc ++ trainData, validDataAcc ++ validData, testDataAcc ++ testData)
 
 main :: IO()
 main = do
@@ -182,7 +180,7 @@ main = do
           validLosses <- forM validData $ \dataPoint -> do
             validOutput' <- forward device mdl dataPoint
             let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
-                loss' = nllLoss' groundTruthIndex' output'
+                loss' = nllLoss' groundTruthIndex' validOutput'
                 validLossValue = (asValue loss') :: Float
             return validLossValue
           let validLoss = sum validLosses / fromIntegral (length validLosses)
