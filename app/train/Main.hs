@@ -73,27 +73,21 @@ instance Randomizable HypParams Params where
     Params
       <$> sample (LstmHypParams dev bi_directional emb_dim hidden_size num_layers has_bias proj_size)
       <*> (makeIndependent =<< randnIO' dev [emb_dim, vocab_size])
-      <*> sample (LinearHypParams dev has_bias (d * hidden_size) num_rules)
+      <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
 -- | LSTMモデルの順伝播
--- | (loss, 予測クラスと正解クラスが一致しているかどうか, 予測クラスのインデックス)を返す
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO (Tensor, Bool, Tensor)
-forward device model dataset = do
-  let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataset) :: Int])
-      inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
-      idxs = asTensor (inputIndices :: [Int])
-      toDeviceIdxs = toDevice device idxs
-      input = embedding' (transpose2D $ toDependent (w_emb model)) toDeviceIdxs
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO Tensor
+forward device Params{..} dataset = do
+  let inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
+      idxs = toDevice device $ asTensor (inputIndices :: [Int])
+      input = embedding' (transpose2D $ toDependent w_emb) idxs
       dropout_prob = Nothing
-      (lstmOutput, _) = lstmLayers (lstm_params model) dropout_prob (h0c0 model) $ input
-  let output = linearLayer (mlp_params model) $ lstmOutput
-  lastOutput <- extractLastOutput output
-  let output' = logSoftmax (Dim 1) lastOutput
-      loss = nllLoss' groundTruthIndex output'
-      predictedClassIndex = argmax (Dim 1) KeepDim lastOutput
-      isCorrect = groundTruthIndex == predictedClassIndex
-  pure (loss, isCorrect, predictedClassIndex)
+      (_, (h0, _)) = lstmLayers lstm_params dropout_prob h0c0 $ input
+  lastOutput <- extractLastOutput h0
+  let output = linearLayer mlp_params lastOutput
+      output' = logSoftmax (Dim 1) output
+  pure output'
 
 extractLastOutput :: Tensor -> IO Tensor
 extractLastOutput tensor = do
@@ -177,15 +171,19 @@ main = do
     flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
-        (loss, _, _) <- forward device mdl (head oneData)
-        let lossValue = (asValue loss) :: Float
+        output' <- forward device mdl (head oneData)
+        let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd (head oneData)) :: Int])
+            loss = nllLoss' groundTruthIndex output'
+            lossValue = (asValue loss) :: Float
             sumLoss = currentSumLoss + loss
         if (i + 1) `mod` numberOfSteps == 0 then do
           u <- update mdl optimizer sumLoss learningRate
           let (newModel, _) = u
           validLosses <- forM validData $ \dataPoint -> do
-            (loss', _, _) <- forward device mdl dataPoint
-            let validLossValue = (asValue loss') :: Float
+            validOutput' <- forward device mdl dataPoint
+            let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
+                loss' = nllLoss' groundTruthIndex' output'
+                validLossValue = (asValue loss') :: Float
             return validLossValue
           let validLoss = sum validLosses / fromIntegral (length validLosses)
           print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral numberOfSteps) :: Float) ++ " validLoss " ++ show validLoss
@@ -213,8 +211,11 @@ main = do
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
-    (_, isCorrect, predictedClassIndex) <- forward device trainedModel dataPoint
-    let label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
+    output' <- forward device trainedModel dataPoint
+    let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
+        predictedClassIndex = argmax (Dim 1) KeepDim output'
+        isCorrect = groundTruthIndex == predictedClassIndex
+        label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
     return (isCorrect, label)
 
   let (isCorrects, predictedLabel) = unzip pairs
