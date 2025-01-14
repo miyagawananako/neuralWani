@@ -73,26 +73,21 @@ instance Randomizable HypParams Params where
     Params
       <$> sample (LstmHypParams dev bi_directional emb_dim hidden_size num_layers has_bias proj_size)
       <*> (makeIndependent =<< randnIO' dev [emb_dim, vocab_size])
-      <*> sample (LinearHypParams dev has_bias (d * hidden_size) num_rules)
+      <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
 -- | LSTMモデルの順伝播
--- | (loss, 予測クラスのインデックス)を返す
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO (Tensor, Tensor)
-forward device model dataset = do
-  let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataset) :: Int])
-      inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
-      idxs = asTensor (inputIndices :: [Int])
-      toDeviceIdxs = toDevice device idxs
-      input = embedding' (transpose2D $ toDependent (w_emb model)) toDeviceIdxs
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO Tensor
+forward device Params{..} dataset = do
+  let inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
+      idxs = toDevice device $ asTensor (inputIndices :: [Int])
+      input = embedding' (transpose2D $ toDependent w_emb) idxs
       dropout_prob = Nothing
-      (lstmOutput, _) = lstmLayers (lstm_params model) dropout_prob (h0c0 model) $ input
-  let output = linearLayer (mlp_params model) $ lstmOutput
-  lastOutput <- extractLastOutput output
-  let output' = logSoftmax (Dim 1) lastOutput
-      loss = nllLoss' groundTruthIndex output'
-      predictedClassIndex = argmax (Dim 1) KeepDim lastOutput
-  pure (loss, predictedClassIndex)
+      (_, (h0, _)) = lstmLayers lstm_params dropout_prob h0c0 $ input
+  lastOutput <- extractLastOutput h0
+  let output = linearLayer mlp_params lastOutput
+      output' = logSoftmax (Dim 1) output
+  pure output'
 
 extractLastOutput :: Tensor -> IO Tensor
 extractLastOutput tensor = do
@@ -110,14 +105,13 @@ countRule rules = List.sortOn (Down . snd) $ Map.toList ruleFreqMap
 
 splitByLabel :: [([Token], QT.DTTrule)] -> IO [(QT.DTTrule, [([Token], QT.DTTrule)])]
 splitByLabel dataset = do
-  flip fix (0 :: Int, dataset, []) $ \loop (i, datalist, splittedData) -> do
-    if datalist == [] then return splittedData
+  flip fix (0 :: Int, dataset, []) $ \loop (i, remainingData, splittedData) -> do
+    if remainingData == [] then return splittedData
     else do
-      let (tokens', rule) = head datalist
+      let (tokens', rule) = head remainingData
           data' = (tokens', rule)
-          rest = tail datalist
           splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
-      loop (i + 1, rest, splittedData')
+      loop (i + 1, tail remainingData, splittedData')
 
 partition :: Int -> [a] -> [[a]]
 partition n xs = go n xs
@@ -212,8 +206,10 @@ main = do
     flip fix (0 :: Int, model, shuffledTrainData, 0, 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
-        (loss, _) <- forward device mdl (head oneData)
-        let lossValue = (asValue loss) :: Float
+        output' <- forward device mdl (head oneData)
+        let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd (head oneData)) :: Int])
+            loss = nllLoss' groundTruthIndex output'
+            lossValue = (asValue loss) :: Float
             sumLoss = currentSumLoss + loss
         if (i + 1) `mod` numberOfSteps == 0 then do
           u <- update mdl optimizer sumLoss learningRate
@@ -224,9 +220,12 @@ main = do
           loop (i + 1, mdl, restDataList, sumLossValue + lossValue, sumLoss)
       else do
         pairs <- forM validData $ \dataPoint -> do
-          (loss', predictedClassIndex) <- forward device mdl dataPoint
-          let validLossValue = (asValue loss') :: Float
-              label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
+          validOutput' <- forward device mdl dataPoint
+          let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
+              loss' = nllLoss' groundTruthIndex' validOutput'
+              validLossValue = (asValue loss') :: Float
+              predictedClassIndex' = argmax (Dim 1) KeepDim validOutput'
+              label = toEnum (asValue predictedClassIndex' :: Int) :: QT.DTTrule
           return (validLossValue, label)
         let (validLosses, predictedLabel) = unzip pairs
             validLoss = sum validLosses / fromIntegral (length validLosses)
