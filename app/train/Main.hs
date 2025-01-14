@@ -207,9 +207,12 @@ main = do
           loop (i + 1, mdl, restDataList, sumLossValue + lossValue, sumLoss)
       else do
         pairs <- forM validData $ \dataPoint -> do
-          (loss', predictedClassIndex) <- forward device mdl dataPoint
-          let validLossValue = (asValue loss') :: Float
-              label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
+          validOutput' <- forward device mdl dataPoint
+          let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
+              loss' = nllLoss' groundTruthIndex' validOutput'
+              validLossValue = (asValue loss') :: Float
+              predictedClassIndex' = argmax (Dim 1) KeepDim validOutput'
+              label = toEnum (asValue predictedClassIndex' :: Int) :: QT.DTTrule
           return (validLossValue, label)
         let (validLosses, predictedLabel) = unzip pairs
             validLoss = sum validLosses / fromIntegral (length validLosses)
