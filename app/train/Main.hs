@@ -15,6 +15,7 @@ import qualified Data.Text.Encoding as E
 import Data.Ord (Down(..))
 import qualified Data.Map.Strict as Map
 import qualified Data.List as List
+import           System.Environment (getArgs)
 import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
@@ -151,6 +152,17 @@ splitDataForCrossValidation splittedDataByLabel threshold n = do
 
 main :: IO()
 main = do
+  args <- getArgs
+  let bi = read (args !! 0) :: Bool
+      emb = read (args !! 1) :: Int
+      h = read (args !! 2) :: Int
+      l = read (args !! 3) :: Int
+      bias = read (args !! 4) :: Bool
+      lr = read (args !! 5) :: Float
+      steps = read (args !! 6) :: Int
+      iter = read (args !! 7) :: Int
+      isParen = read (args !! 8) :: Bool
+      isSep = read (args !! 9) :: Bool
   waniTestDataset <- loadActionsFromBinary proofSearchResultFilePath
 
   jsemFiles <- listDirectory "data/JSeM/"
@@ -159,31 +171,32 @@ main = do
   let dataset = waniTestDataset ++ concat jsemDatasets
       wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
       frequentWords = getFrequentWords wordList
-      isParen = False
-      isSep = False
       constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords isParen isSep) dataset
       ruleList = map (\(_, rule) -> rule) dataset
 
   let countedRules = countRule ruleList
   print $ "countedRules " ++ show countedRules
   splitedData <- splitByLabel (zip constructorData ruleList)
-  let iter = 5 :: Int
   crossValidationData <- splitDataForCrossValidation splitedData 450 iter
 
   currentTime <- getZonedTime
   let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
       device = Device CUDA 0
-      biDirectional = True
-      embDim = 256
-      numOfLayers = 2
-      hiddenSize = 512
-      hasBias = False
+      biDirectional = bi
+      embDim = emb
+      numOfLayers = l
+      hiddenSize = h
+      hasBias = bias
       vocabSize = length tokens
       projSize = Nothing
       numOfRules = length labels
       hyperParams = HypParams device biDirectional embDim hasBias projSize vocabSize numOfLayers hiddenSize numOfRules
-      learningRate = 5e-4 :: Tensor
-      numberOfSteps = 32
+      learningRate = toDevice device (asTensor (lr :: Float))
+      numberOfSteps = steps
+  print $ "hyperParams " ++ show hyperParams
+  print $ "learningRate " ++ show learningRate
+  print $ "numberOfSteps " ++ show numberOfSteps
+  print $ "iter " ++ show iter
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
