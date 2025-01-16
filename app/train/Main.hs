@@ -31,7 +31,7 @@ import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
-import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
+import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment)
 
 proofSearchResultFilePath :: FilePath
 proofSearchResultFilePath = "data/proofSearchResult"
@@ -134,8 +134,8 @@ main = do
   jsemDatasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
 
   let dataset = waniTestDataset ++ concat jsemDatasets
-      wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
-      frequentWords = getFrequentWords wordList
+      wordList = concatMap (\(judgment, _) -> getConstantSymbolsFromJudgment judgment) dataset
+      frequentWords = getFrequentConstantSymbols wordList
       isParen = False
       isSep = False
       constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords isParen isSep) dataset
