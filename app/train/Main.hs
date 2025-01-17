@@ -159,7 +159,7 @@ main = do
   let countedTrainRules = countRule $ map (\(_, rule) -> rule) trainData
   print $ "countedRules (training data) " ++ show countedTrainRules
 
-  let device = Device CPU 0
+  let device = Device CUDA 0
       biDirectional = bi
       embDim = emb
       numOfLayers = l
