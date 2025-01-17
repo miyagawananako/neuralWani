@@ -74,29 +74,34 @@ instance Randomizable HypParams Params where
     Params
       <$> sample (LstmHypParams dev bi_directional emb_dim hidden_size num_layers has_bias proj_size)
       <*> (makeIndependent =<< randnIO' dev [emb_dim, vocab_size])
-      <*> sample (LinearHypParams dev has_bias hidden_size num_rules)
+      <*> sample (LinearHypParams dev has_bias (d * hidden_size) num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
 -- | LSTMモデルの順伝播
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> IO Tensor
-forward device Params{..} dataset = do
+forward :: Device -> Params -> ([Token], QT.DTTrule) -> Bool -> IO Tensor
+forward device Params{..} dataset bi_directional = do
   let inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
       idxs = toDevice device $ asTensor (inputIndices :: [Int])
       input = embedding' (transpose2D $ toDependent w_emb) idxs
       dropout_prob = Nothing
-      (_, (h0, _)) = lstmLayers lstm_params dropout_prob h0c0 $ input
-  lastOutput <- extractLastOutput h0
+      (_, (h, _)) = lstmLayers lstm_params dropout_prob h0c0 $ input
+  lastOutput <- extractLastOutput h bi_directional
   let output = linearLayer mlp_params lastOutput
       output' = logSoftmax (Dim 1) output
   pure output'
 
-extractLastOutput :: Tensor -> IO Tensor
-extractLastOutput tensor = do
+extractLastOutput :: Tensor -> Bool -> IO Tensor
+extractLastOutput tensor bi_directional = do
   let shapeInput = shape tensor
-  case shapeInput of
-    [1, n] -> return $ reshape [1, n] tensor
-    [_, n] -> return $ reshape [1, n] $ sliceDim 0 (length shapeInput - 1) (length shapeInput) 1 tensor
-    _      -> error $ "Unexpected shape: " ++ show shapeInput
+  case bi_directional of 
+    True -> do
+      let lastOutput1 = sliceDim 0 (shapeInput !! 0 - 2) (shapeInput !! 0) 1 tensor  -- [2, hidden_size]
+      return $ reshape [1, 2 * (shapeInput !! (length shapeInput - 1))] lastOutput1  -- [1, 2 * hidden_size]
+    False -> do
+      case shapeInput of
+        [1, n] -> return tensor
+        [_, n] -> return $ sliceDim 0 (shapeInput !! 0 - 1) (shapeInput !! 0) 1 tensor
+        _      -> error $ "Unexpected shape: " ++ show shapeInput
 
 countRule :: [QT.DTTrule] -> [(QT.DTTrule, Int)]
 countRule rules = List.sortOn (Down . snd) $ Map.toList ruleFreqMap
@@ -115,14 +120,16 @@ splitByLabel dataset = do
       loop (i + 1, tail remainingData, splittedData')
 
 -- (training, validation, test)
-smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
+smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Maybe Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
 smoothData splittedData threshold = do
   flip fix (0 :: Int, splittedData, [], [], []) $ \loop (i, remainingData, trainDataAcc, validDataAcc, testDataAcc) -> do
     if remainingData == [] then return (trainDataAcc, validDataAcc, testDataAcc)
     else do
       let (_, dataList) = head remainingData
       shuffledData <- shuffleM dataList
-      let limitedData = take threshold shuffledData
+      let limitedData = case threshold of
+            Nothing -> shuffledData
+            Just threshold' -> take threshold' shuffledData
           (trainData, restData) = splitAt (length limitedData * 7 `div` 10) limitedData
           (validData, testData) = splitAt (length restData * 5 `div` 10) restData
       loop (i + 1, tail remainingData, trainDataAcc ++ trainData, validDataAcc ++ validData, testDataAcc ++ testData)
@@ -154,7 +161,7 @@ main = do
   let countedRules = countRule ruleList
   print $ "countedRules " ++ show countedRules
   splitedData <- splitByLabel (zip constructorData ruleList)
-  (trainData, validData, testData) <- smoothData splitedData 450
+  (trainData, validData, testData) <- smoothData splitedData Nothing
 
   let countedTrainRules = countRule $ map (\(_, rule) -> rule) trainData
   print $ "countedRules (training data) " ++ show countedTrainRules
@@ -182,7 +189,7 @@ main = do
     flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
-        output' <- forward device mdl (head oneData)
+        output' <- forward device mdl (head oneData) biDirectional
         let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd (head oneData)) :: Int])
             loss = nllLoss' groundTruthIndex output'
             lossValue = (asValue loss) :: Float
@@ -191,7 +198,7 @@ main = do
           u <- update mdl optimizer sumLoss learningRate
           let (newModel, _) = u
           validLosses <- forM validData $ \dataPoint -> do
-            validOutput' <- forward device mdl dataPoint
+            validOutput' <- forward device mdl dataPoint biDirectional
             let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
                 loss' = nllLoss' groundTruthIndex' validOutput'
                 validLossValue = (asValue loss') :: Float
@@ -222,7 +229,7 @@ main = do
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
   pairs <- forM testData $ \dataPoint -> do
-    output' <- forward device trainedModel dataPoint
+    output' <- forward device trainedModel dataPoint biDirectional
     let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
         predictedClassIndex = argmax (Dim 1) KeepDim output'
         isCorrect = groundTruthIndex == predictedClassIndex
