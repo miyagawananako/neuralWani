@@ -32,7 +32,7 @@ import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
-import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment)
+import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment, DelimiterToken(..))
 
 proofSearchResultFilePath :: FilePath
 proofSearchResultFilePath = "data/proofSearchResult"
@@ -99,8 +99,8 @@ extractLastOutput tensor bi_directional = do
       return $ reshape [1, 2 * (shapeInput !! (length shapeInput - 1))] lastOutput1  -- [1, 2 * hidden_size]
     False -> do
       case shapeInput of
-        [1, n] -> return tensor
-        [_, n] -> return $ sliceDim 0 (shapeInput !! 0 - 1) (shapeInput !! 0) 1 tensor
+        [1, _] -> return tensor
+        [_, _] -> return $ sliceDim 0 (shapeInput !! 0 - 1) (shapeInput !! 0) 1 tensor
         _      -> error $ "Unexpected shape: " ++ show shapeInput
 
 countRule :: [QT.DTTrule] -> [(QT.DTTrule, Int)]
@@ -145,8 +145,7 @@ main = do
       lr = read (args !! 5) :: Float
       steps = read (args !! 6) :: Int
       iter = read (args !! 7) :: Int
-      isParen = read (args !! 8) :: Bool
-      isSep = read (args !! 9) :: Bool
+      delimiterToken = read (args !! 8) :: DelimiterToken
   waniTestDataset <- loadActionsFromBinary proofSearchResultFilePath
 
   jsemFiles <- listDirectory "data/JSeM/"
@@ -155,7 +154,7 @@ main = do
   let dataset = waniTestDataset ++ concat jsemDatasets
       wordList = concatMap (\(judgment, _) -> getConstantSymbolsFromJudgment judgment) dataset
       frequentWords = getFrequentConstantSymbols wordList
-      constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords isParen isSep) dataset
+      constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords delimiterToken) dataset
       ruleList = map (\(_, rule) -> rule) dataset
 
   let countedRules = countRule ruleList
@@ -182,6 +181,7 @@ main = do
   print $ "learningRate " ++ show learningRate
   print $ "numberOfSteps " ++ show numberOfSteps
   print $ "iter " ++ show iter
+  print $ "delimiterToken " ++ show delimiterToken
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
@@ -222,8 +222,7 @@ main = do
       graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
       confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
       classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
-      splitType = if isParen then "()" else if isSep then "SEP" else "EO~"
-      learningCurveTitle = "type: " ++ show splitType ++ " s: " ++ show numberOfSteps ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      learningCurveTitle = "type: " ++ show delimiterToken ++ " s: " ++ show numberOfSteps ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
