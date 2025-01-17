@@ -4,8 +4,8 @@
 
 module SplitJudgment
     ( loadActionsFromBinary
-    , getWordsFromJudgment
-    , getFrequentWords
+    , getConstantSymbolsFromJudgment
+    , getFrequentConstantSymbols
     , Token(..)
     , splitJudgment
     ) where
@@ -27,51 +27,51 @@ loadActionsFromBinary filepath = do
     Left peek_exception -> error $ "Could not parse dic file " ++ filepath ++ ": " ++ (show peek_exception)
     Right actions -> return actions
 
-getWordsFromPreterm :: U.Preterm -> [T.Text]
-getWordsFromPreterm preterm = case preterm of
-  U.Con c  -> [c]
-  U.Pi a b -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Lam m  -> getWordsFromPreterm m
-  U.App m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Not m  -> getWordsFromPreterm m
-  U.Sigma a b  -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Pair m n   -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Proj _ m   -> getWordsFromPreterm m
-  U.Disj a b   -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Iota _ m   -> getWordsFromPreterm m
-  U.Unpack p h m n -> getWordsFromPreterm p ++ getWordsFromPreterm h ++ getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Succ n     -> getWordsFromPreterm n
-  U.Natrec n e f -> getWordsFromPreterm n ++ getWordsFromPreterm e ++ getWordsFromPreterm f
-  U.Eq a m n   -> getWordsFromPreterm a ++ getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Refl a m   -> getWordsFromPreterm a ++ getWordsFromPreterm m
-  U.Idpeel m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  _ -> []
+getConstantSymbolsFromPreterm :: U.Preterm -> [T.Text]
+getConstantSymbolsFromPreterm (U.Con c) = [c]
+getConstantSymbolsFromPreterm (U.Pi a b) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm b
+getConstantSymbolsFromPreterm (U.Lam m) = getConstantSymbolsFromPreterm m
+getConstantSymbolsFromPreterm (U.App m n) = getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Not m) = getConstantSymbolsFromPreterm m
+getConstantSymbolsFromPreterm (U.Sigma a b) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm b
+getConstantSymbolsFromPreterm (U.Pair m n) = getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Proj _ m) = getConstantSymbolsFromPreterm m
+getConstantSymbolsFromPreterm (U.Disj a b) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm b
+getConstantSymbolsFromPreterm (U.Iota _ m) = getConstantSymbolsFromPreterm m
+getConstantSymbolsFromPreterm (U.Unpack p h m n) = getConstantSymbolsFromPreterm p ++ getConstantSymbolsFromPreterm h ++ getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Succ n) = getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Natrec n e f) = getConstantSymbolsFromPreterm n ++ getConstantSymbolsFromPreterm e ++ getConstantSymbolsFromPreterm f
+getConstantSymbolsFromPreterm (U.Eq a m n) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Refl a m) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm m
+getConstantSymbolsFromPreterm (U.Idpeel m n) = getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm _ = []
 
-getWordsFromPreterms :: [U.Preterm] -> [T.Text]
-getWordsFromPreterms preterms = concatMap (\preterm -> getWordsFromPreterm preterm) preterms
+getConstantSymbolsFromPreterms :: [U.Preterm] -> [T.Text]
+getConstantSymbolsFromPreterms preterms = concatMap (\preterm -> getConstantSymbolsFromPreterm preterm) preterms
 
-getWordsFromSignature :: U.Signature -> [T.Text]
-getWordsFromSignature signature = concatMap (\(name, preterm) -> [name] ++ getWordsFromPreterm preterm) signature
+getConstantSymbolsFromSignature :: U.Signature -> [T.Text]
+getConstantSymbolsFromSignature signature = concatMap (\(name, preterm) -> [name] ++ getConstantSymbolsFromPreterm preterm) signature
 
 allowDuplicateWords :: Bool
 allowDuplicateWords = True
 
-getWordsFromJudgment :: U.Judgment -> [T.Text]
-getWordsFromJudgment judgment =
-  if allowDuplicateWords then wordList
-  else Set.toList . Set.fromList $ wordList
+getConstantSymbolsFromJudgment :: U.Judgment -> [T.Text]
+getConstantSymbolsFromJudgment judgment =
+  if allowDuplicateWords
+    then wordList
+    else Set.toList . Set.fromList $ wordList
   where
     wordList =
-      getWordsFromSignature (U.signtr judgment) ++
-      getWordsFromPreterms (U.contxt judgment) ++
-      getWordsFromPreterm (U.trm judgment) ++
-      getWordsFromPreterm (U.typ judgment)
+      getConstantSymbolsFromSignature (U.signtr judgment) ++
+      getConstantSymbolsFromPreterms (U.contxt judgment) ++
+      getConstantSymbolsFromPreterm (U.trm judgment) ++
+      getConstantSymbolsFromPreterm (U.typ judgment)
 
-getFrequentWords :: [T.Text] -> [T.Text]
-getFrequentWords frequentWords = take 31 $ map fst $ List.sortOn (Down . snd) $ Map.toList wordFreqMap
+getFrequentConstantSymbols :: [T.Text] -> [T.Text]
+getFrequentConstantSymbols frequentWords = take 31 $ map fst $ List.sortOn (Down . snd) $ Map.toList constantSymbolsFreqMap
   where
-    wordFreqMap :: Map.Map T.Text Int
-    wordFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords
+    constantSymbolsFreqMap :: Map.Map T.Text Int
+    constantSymbolsFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords
 
 data Token =  FST | SND | COMMA | EOPair | EOPre | EOSig | EOCon | EOTerm | EOTyp | LPAREN | RPAREN | SEP
             | Word1 | Word2 | Word3 | Word4 | Word5 | Word6 | Word7 | Word8 | Word9 | Word10 | Word11 | Word12 | Word13 | Word14 | Word15 | Word16 | Word17 | Word18 | Word19 | Word20 | Word21 | Word22 | Word23 | Word24 | Word25 | Word26 | Word27 | Word28 | Word29 | Word30 | Word31 | UNKNOWN

@@ -32,7 +32,7 @@ import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
-import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
+import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment)
 
 proofSearchResultFilePath :: FilePath
 proofSearchResultFilePath = "data/proofSearchResult"
@@ -146,8 +146,8 @@ main = do
   jsemDatasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
 
   let dataset = waniTestDataset ++ concat jsemDatasets
-      wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
-      frequentWords = getFrequentWords wordList
+      wordList = concatMap (\(judgment, _) -> getConstantSymbolsFromJudgment judgment) dataset
+      frequentWords = getFrequentConstantSymbols wordList
       constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords isParen isSep) dataset
       ruleList = map (\(_, rule) -> rule) dataset
 
@@ -159,7 +159,7 @@ main = do
   let countedTrainRules = countRule $ map (\(_, rule) -> rule) trainData
   print $ "countedRules (training data) " ++ show countedTrainRules
 
-  let device = Device CPU 0
+  let device = Device CUDA 0
       biDirectional = bi
       embDim = emb
       numOfLayers = l
