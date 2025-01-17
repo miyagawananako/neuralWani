@@ -31,7 +31,7 @@ import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
-import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment)
+import SplitJudgment (Token(..), loadActionsFromBinary, getWordsFromJudgment, getFrequentWords, splitJudgment, DelimiterToken(..))
 
 proofSearchResultFilePath :: FilePath
 proofSearchResultFilePath = "data/proofSearchResult"
@@ -161,8 +161,7 @@ main = do
       lr = read (args !! 5) :: Float
       steps = read (args !! 6) :: Int
       iter = read (args !! 7) :: Int
-      isParen = read (args !! 8) :: Bool
-      isSep = read (args !! 9) :: Bool
+      delimiterToken = read (args !! 8) :: DelimiterToken
   waniTestDataset <- loadActionsFromBinary proofSearchResultFilePath
 
   jsemFiles <- listDirectory "data/JSeM/"
@@ -171,7 +170,7 @@ main = do
   let dataset = waniTestDataset ++ concat jsemDatasets
       wordList = concatMap (\(judgment, _) -> getWordsFromJudgment judgment) dataset
       frequentWords = getFrequentWords wordList
-      constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords isParen isSep) dataset
+      constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords delimiterToken) dataset
       ruleList = map (\(_, rule) -> rule) dataset
 
   let countedRules = countRule ruleList
@@ -242,8 +241,7 @@ main = do
 
   let modelFileName = "trained_data/seq-class" ++ timeString ++ ".model"
       graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
-      splitType = if isParen then "()" else if isSep then "SEP" else "EO~"
-      learningCurveTitle = "type: " ++ show splitType ++ " s: " ++ show numberOfSteps ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      learningCurveTitle = "type: " ++ show delimiterToken ++ " s: " ++ show numberOfSteps ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
