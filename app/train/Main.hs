@@ -37,11 +37,11 @@ import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJu
 proofSearchResultFilePath :: FilePath
 proofSearchResultFilePath = "data/proofSearchResult"
 
-labels :: [QT.DTTrule]
-labels = [minBound..]
+allLabels :: [QT.DTTrule]
+allLabels = [minBound..]
 
-tokens :: [Token]
-tokens = [minBound..]
+allTokens :: [Token]
+allTokens = [minBound..]
 
 -- 初期化のためのハイパーパラメータ
 data HypParams = HypParams {
@@ -171,9 +171,9 @@ main = do
       numOfLayers = l
       hiddenSize = h
       hasBias = bias
-      vocabSize = length tokens
+      vocabSize = length allTokens
       projSize = Nothing
-      numOfRules = length labels
+      numOfRules = length allLabels
       hyperParams = HypParams device biDirectional embDim hasBias projSize vocabSize numOfLayers hiddenSize numOfRules
       learningRate = toDevice device (asTensor (lr :: Float))
       numberOfSteps = steps
@@ -239,12 +239,12 @@ main = do
 
   print $ zip predictedLabel (snd $ unzip $ testData)
 
-  let classificationReport = showClassificationReport (length labels) (zip predictedLabel (snd $ unzip $ testData))
+  let classificationReport = showClassificationReport (length allLabels) (zip predictedLabel (snd $ unzip $ testData))
   T.putStr classificationReport
 
   B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
 
-  drawConfusionMatrix confusionMatrixFileName (length labels) (zip predictedLabel (snd $ unzip $ testData))
+  drawConfusionMatrix confusionMatrixFileName (length allLabels) (zip predictedLabel (snd $ unzip $ testData))
 
   print $ "isCorrects " ++ show isCorrects
 
