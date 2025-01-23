@@ -17,6 +17,7 @@ import Data.Ord (Down(..))
 import qualified Data.Map.Strict as Map
 import qualified Data.List as List
 import           System.Environment (getArgs)
+import System.Mem (performGC)
 import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
@@ -187,6 +188,7 @@ main = do
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
     shuffledTrainData <- shuffleM trainData
     flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
+      performGC
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
         output' <- forward device mdl (head oneData) biDirectional
