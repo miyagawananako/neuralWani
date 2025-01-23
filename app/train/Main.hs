@@ -192,15 +192,18 @@ main = do
       if length data_list > 0 then do
         let (oneData, restDataList) = splitAt 1 data_list
         output' <- forward device mdl (head oneData) biDirectional
+        performGC
         let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd (head oneData)) :: Int])
             loss = nllLoss' groundTruthIndex output'
             lossValue = (asValue loss) :: Float
             sumLoss = currentSumLoss + loss
         if (i + 1) `mod` numberOfSteps == 0 then do
           u <- update mdl optimizer sumLoss learningRate
+          performGC
           let (newModel, _) = u
           validLosses <- forM validData $ \dataPoint -> do
             validOutput' <- forward device mdl dataPoint biDirectional
+            performGC
             let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
                 loss' = nllLoss' groundTruthIndex' validOutput'
                 validLossValue = (asValue loss') :: Float
