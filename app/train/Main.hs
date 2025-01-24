@@ -227,7 +227,7 @@ main = do
       graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
       confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
       classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
-      learningCurveTitle = "type: " ++ show delimiterToken ++ " s: " ++ show numberOfSteps ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      learningCurveTitle = "type: " ++ show delimiterToken ++ " bi: " ++ show biDirectional ++ " s: " ++ show numberOfSteps ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
