@@ -4,10 +4,11 @@
 
 module SplitJudgment
     ( loadActionsFromBinary
-    , getWordsFromJudgment
-    , getFrequentWords
+    , getConstantSymbolsFromJudgment
+    , getFrequentConstantSymbols
     , Token(..)
     , splitJudgment
+    , DelimiterToken(..)
     ) where
 
 import qualified DTS.QueryTypes as QT
@@ -19,6 +20,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.List as List
 import Data.Ord
 import qualified Data.Set as Set
+import GHC.Generics
 
 loadActionsFromBinary :: FilePath -> IO [(U.Judgment, QT.DTTrule)]
 loadActionsFromBinary filepath = do
@@ -27,51 +29,51 @@ loadActionsFromBinary filepath = do
     Left peek_exception -> error $ "Could not parse dic file " ++ filepath ++ ": " ++ (show peek_exception)
     Right actions -> return actions
 
-getWordsFromPreterm :: U.Preterm -> [T.Text]
-getWordsFromPreterm preterm = case preterm of
-  U.Con c  -> [c]
-  U.Pi a b -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Lam m  -> getWordsFromPreterm m
-  U.App m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Not m  -> getWordsFromPreterm m
-  U.Sigma a b  -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Pair m n   -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Proj _ m   -> getWordsFromPreterm m
-  U.Disj a b   -> getWordsFromPreterm a ++ getWordsFromPreterm b
-  U.Iota _ m   -> getWordsFromPreterm m
-  U.Unpack p h m n -> getWordsFromPreterm p ++ getWordsFromPreterm h ++ getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Succ n     -> getWordsFromPreterm n
-  U.Natrec n e f -> getWordsFromPreterm n ++ getWordsFromPreterm e ++ getWordsFromPreterm f
-  U.Eq a m n   -> getWordsFromPreterm a ++ getWordsFromPreterm m ++ getWordsFromPreterm n
-  U.Refl a m   -> getWordsFromPreterm a ++ getWordsFromPreterm m
-  U.Idpeel m n -> getWordsFromPreterm m ++ getWordsFromPreterm n
-  _ -> []
+getConstantSymbolsFromPreterm :: U.Preterm -> [T.Text]
+getConstantSymbolsFromPreterm (U.Con c) = [c]
+getConstantSymbolsFromPreterm (U.Pi a b) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm b
+getConstantSymbolsFromPreterm (U.Lam m) = getConstantSymbolsFromPreterm m
+getConstantSymbolsFromPreterm (U.App m n) = getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Not m) = getConstantSymbolsFromPreterm m
+getConstantSymbolsFromPreterm (U.Sigma a b) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm b
+getConstantSymbolsFromPreterm (U.Pair m n) = getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Proj _ m) = getConstantSymbolsFromPreterm m
+getConstantSymbolsFromPreterm (U.Disj a b) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm b
+getConstantSymbolsFromPreterm (U.Iota _ m) = getConstantSymbolsFromPreterm m
+getConstantSymbolsFromPreterm (U.Unpack p h m n) = getConstantSymbolsFromPreterm p ++ getConstantSymbolsFromPreterm h ++ getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Succ n) = getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Natrec n e f) = getConstantSymbolsFromPreterm n ++ getConstantSymbolsFromPreterm e ++ getConstantSymbolsFromPreterm f
+getConstantSymbolsFromPreterm (U.Eq a m n) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Refl a m) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm m
+getConstantSymbolsFromPreterm (U.Idpeel m n) = getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm _ = []
 
-getWordsFromPreterms :: [U.Preterm] -> [T.Text]
-getWordsFromPreterms preterms = concatMap (\preterm -> getWordsFromPreterm preterm) preterms
+getConstantSymbolsFromPreterms :: [U.Preterm] -> [T.Text]
+getConstantSymbolsFromPreterms preterms = concatMap (\preterm -> getConstantSymbolsFromPreterm preterm) preterms
 
-getWordsFromSignature :: U.Signature -> [T.Text]
-getWordsFromSignature signature = concatMap (\(name, preterm) -> [name] ++ getWordsFromPreterm preterm) signature
+getConstantSymbolsFromSignature :: U.Signature -> [T.Text]
+getConstantSymbolsFromSignature signature = concatMap (\(name, preterm) -> [name] ++ getConstantSymbolsFromPreterm preterm) signature
 
 allowDuplicateWords :: Bool
 allowDuplicateWords = True
 
-getWordsFromJudgment :: U.Judgment -> [T.Text]
-getWordsFromJudgment judgment =
-  if allowDuplicateWords then wordList
-  else Set.toList . Set.fromList $ wordList
+getConstantSymbolsFromJudgment :: U.Judgment -> [T.Text]
+getConstantSymbolsFromJudgment judgment =
+  if allowDuplicateWords
+    then wordList
+    else Set.toList . Set.fromList $ wordList
   where
     wordList =
-      getWordsFromSignature (U.signtr judgment) ++
-      getWordsFromPreterms (U.contxt judgment) ++
-      getWordsFromPreterm (U.trm judgment) ++
-      getWordsFromPreterm (U.typ judgment)
+      getConstantSymbolsFromSignature (U.signtr judgment) ++
+      getConstantSymbolsFromPreterms (U.contxt judgment) ++
+      getConstantSymbolsFromPreterm (U.trm judgment) ++
+      getConstantSymbolsFromPreterm (U.typ judgment)
 
-getFrequentWords :: [T.Text] -> [T.Text]
-getFrequentWords frequentWords = take 31 $ map fst $ List.sortOn (Down . snd) $ Map.toList wordFreqMap
+getFrequentConstantSymbols :: [T.Text] -> [T.Text]
+getFrequentConstantSymbols frequentWords = take 31 $ map fst $ List.sortOn (Down . snd) $ Map.toList constantSymbolsFreqMap
   where
-    wordFreqMap :: Map.Map T.Text Int
-    wordFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords
+    constantSymbolsFreqMap :: Map.Map T.Text Int
+    constantSymbolsFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty frequentWords
 
 data Token =  FST | SND | COMMA | EOPair | EOPre | EOSig | EOCon | EOTerm | EOTyp | LPAREN | RPAREN | SEP
             | Word1 | Word2 | Word3 | Word4 | Word5 | Word6 | Word7 | Word8 | Word9 | Word10 | Word11 | Word12 | Word13 | Word14 | Word15 | Word16 | Word17 | Word18 | Word19 | Word20 | Word21 | Word22 | Word23 | Word24 | Word25 | Word26 | Word27 | Word28 | Word29 | Word30 | Word31 | UNKNOWN
@@ -132,73 +134,81 @@ selectorToToken s = case s of
   U.Fst -> [FST]
   U.Snd -> [SND]
 
-wrapPreterm :: [Token] -> Bool -> Bool -> [Token]
-wrapPreterm xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOPre]
+data DelimiterToken = Paren | Sep | Eo | Unused deriving (Show, Eq, Enum, Bounded, Ord, Generic, Read)
 
-splitPreterm :: U.Preterm -> [T.Text] -> Bool -> Bool -> [Token]
-splitPreterm preterm frequentWords isParen isSep = case preterm of
-  U.Var i -> wrapPreterm (varToToken i) isParen isSep
-  U.Con c -> wrapPreterm (textToToken c frequentWords) isParen isSep
-  U.Type -> wrapPreterm [Type'] isParen isSep
-  U.Kind -> wrapPreterm [Kind'] isParen isSep
-  U.Pi a b -> wrapPreterm ([Pi'] ++ splitPreterm a frequentWords isParen isSep ++ splitPreterm b frequentWords isParen isSep) isParen isSep
-  U.Lam m -> wrapPreterm ([Lam'] ++ splitPreterm m frequentWords isParen isSep) isParen isSep
-  U.App m n -> wrapPreterm ([App'] ++ splitPreterm m frequentWords isParen isSep ++ splitPreterm n frequentWords isParen isSep) isParen isSep
-  U.Not m -> wrapPreterm ([Not'] ++ splitPreterm m frequentWords isParen isSep) isParen isSep
-  U.Sigma a b -> wrapPreterm ([Sigma'] ++ splitPreterm a frequentWords isParen isSep ++ splitPreterm b frequentWords isParen isSep) isParen isSep
-  U.Pair m n -> wrapPreterm ([Pair'] ++ splitPreterm m frequentWords isParen isSep ++ splitPreterm n frequentWords isParen isSep) isParen isSep
-  U.Proj s m -> wrapPreterm ([Proj'] ++ selectorToToken s ++ splitPreterm m frequentWords isParen isSep) isParen isSep
-  U.Disj a b -> wrapPreterm ([Disj'] ++ splitPreterm a frequentWords isParen isSep ++ splitPreterm b frequentWords isParen isSep) isParen isSep
-  U.Iota s m -> wrapPreterm ([Iota'] ++ selectorToToken s ++ splitPreterm m frequentWords isParen isSep) isParen isSep
-  U.Unpack p h m n -> wrapPreterm ([Unpack'] ++ splitPreterm p frequentWords isParen isSep ++ splitPreterm h frequentWords isParen isSep ++ splitPreterm m frequentWords isParen isSep ++ splitPreterm n frequentWords isParen isSep) isParen isSep
-  U.Bot -> wrapPreterm [Bot'] isParen isSep
-  U.Unit -> wrapPreterm [Unit'] isParen isSep
-  U.Top -> wrapPreterm [Top'] isParen isSep
-  U.Entity -> wrapPreterm [Entity'] isParen isSep
-  U.Nat -> wrapPreterm [Nat'] isParen isSep
-  U.Zero -> wrapPreterm [Zero'] isParen isSep
-  U.Succ m -> wrapPreterm ([Succ'] ++ splitPreterm m frequentWords isParen isSep) isParen isSep
-  U.Natrec n e f -> wrapPreterm ([Natrec'] ++ splitPreterm n frequentWords isParen isSep ++ splitPreterm e frequentWords isParen isSep ++ splitPreterm f frequentWords isParen isSep) isParen isSep
-  U.Eq a m n -> wrapPreterm ([Eq'] ++ splitPreterm a frequentWords isParen isSep ++ splitPreterm m frequentWords isParen isSep ++ splitPreterm n frequentWords isParen isSep) isParen isSep
-  U.Refl a m -> wrapPreterm ([Refl'] ++ splitPreterm a frequentWords isParen isSep ++ splitPreterm m frequentWords isParen isSep) isParen isSep
-  U.Idpeel m n -> wrapPreterm ([Idpeel'] ++ splitPreterm m frequentWords isParen isSep ++ splitPreterm n frequentWords isParen isSep) isParen isSep
+wrapPreterm :: [Token] -> DelimiterToken -> [Token]
+wrapPreterm xs Paren = [LPAREN] ++ xs ++ [RPAREN]
+wrapPreterm xs Sep = xs ++ [SEP]
+wrapPreterm xs Eo = xs ++ [EOPre]
+wrapPreterm xs Unused = xs
 
-splitPreterms:: [U.Preterm] -> [T.Text] -> Bool -> Bool -> [Token]
-splitPreterms preterms frequentWords isParen isSep = concatMap (\preterm -> splitPreterm preterm frequentWords isParen isSep) preterms
+splitPreterm :: U.Preterm -> [T.Text] -> DelimiterToken -> [Token]
+splitPreterm preterm frequentWords delimiterToken = case preterm of
+  U.Var i -> wrapPreterm (varToToken i) delimiterToken
+  U.Con c -> wrapPreterm (textToToken c frequentWords) delimiterToken
+  U.Type -> wrapPreterm [Type'] delimiterToken
+  U.Kind -> wrapPreterm [Kind'] delimiterToken
+  U.Pi a b -> wrapPreterm ([Pi'] ++ splitPreterm a frequentWords delimiterToken ++ splitPreterm b frequentWords delimiterToken) delimiterToken
+  U.Lam m -> wrapPreterm ([Lam'] ++ splitPreterm m frequentWords delimiterToken) delimiterToken
+  U.App m n -> wrapPreterm ([App'] ++ splitPreterm m frequentWords delimiterToken ++ splitPreterm n frequentWords delimiterToken) delimiterToken
+  U.Not m -> wrapPreterm ([Not'] ++ splitPreterm m frequentWords delimiterToken) delimiterToken
+  U.Sigma a b -> wrapPreterm ([Sigma'] ++ splitPreterm a frequentWords delimiterToken ++ splitPreterm b frequentWords delimiterToken) delimiterToken
+  U.Pair m n -> wrapPreterm ([Pair'] ++ splitPreterm m frequentWords delimiterToken ++ splitPreterm n frequentWords delimiterToken) delimiterToken
+  U.Proj s m -> wrapPreterm ([Proj'] ++ selectorToToken s ++ splitPreterm m frequentWords delimiterToken) delimiterToken
+  U.Disj a b -> wrapPreterm ([Disj'] ++ splitPreterm a frequentWords delimiterToken ++ splitPreterm b frequentWords delimiterToken) delimiterToken
+  U.Iota s m -> wrapPreterm ([Iota'] ++ selectorToToken s ++ splitPreterm m frequentWords delimiterToken) delimiterToken
+  U.Unpack p h m n -> wrapPreterm ([Unpack'] ++ splitPreterm p frequentWords delimiterToken ++ splitPreterm h frequentWords delimiterToken ++ splitPreterm m frequentWords delimiterToken ++ splitPreterm n frequentWords delimiterToken) delimiterToken
+  U.Bot -> wrapPreterm [Bot'] delimiterToken
+  U.Unit -> wrapPreterm [Unit'] delimiterToken
+  U.Top -> wrapPreterm [Top'] delimiterToken
+  U.Entity -> wrapPreterm [Entity'] delimiterToken
+  U.Nat -> wrapPreterm [Nat'] delimiterToken
+  U.Zero -> wrapPreterm [Zero'] delimiterToken
+  U.Succ m -> wrapPreterm ([Succ'] ++ splitPreterm m frequentWords delimiterToken) delimiterToken
+  U.Natrec n e f -> wrapPreterm ([Natrec'] ++ splitPreterm n frequentWords delimiterToken ++ splitPreterm e frequentWords delimiterToken ++ splitPreterm f frequentWords delimiterToken) delimiterToken
+  U.Eq a m n -> wrapPreterm ([Eq'] ++ splitPreterm a frequentWords delimiterToken ++ splitPreterm m frequentWords delimiterToken ++ splitPreterm n frequentWords delimiterToken) delimiterToken
+  U.Refl a m -> wrapPreterm ([Refl'] ++ splitPreterm a frequentWords delimiterToken ++ splitPreterm m frequentWords delimiterToken) delimiterToken
+  U.Idpeel m n -> wrapPreterm ([Idpeel'] ++ splitPreterm m frequentWords delimiterToken ++ splitPreterm n frequentWords delimiterToken) delimiterToken
 
-wrapPair :: [Token] -> Bool -> Bool -> [Token]
-wrapPair xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOPair]
+splitPreterms:: [U.Preterm] -> [T.Text] -> DelimiterToken -> [Token]
+splitPreterms preterms frequentWords delimiterToken = concatMap (\preterm -> splitPreterm preterm frequentWords delimiterToken) preterms
 
-splitSignature :: U.Signature -> [T.Text] -> Bool -> Bool -> [Token]
-splitSignature signature frequentWords isParen isSep = concatMap (\(name, preterm) -> wrapPair (textToToken name frequentWords ++ [COMMA] ++ splitPreterm preterm frequentWords isParen isSep) isParen isSep) signature
+wrapPair :: [Token] -> DelimiterToken -> [Token]
+wrapPair xs Paren = [LPAREN] ++ xs ++ [RPAREN]
+wrapPair xs Sep = xs ++ [SEP]
+wrapPair xs Eo = xs ++ [EOPair]
+wrapPair xs Unused = xs
 
-wrapSignature :: [Token] -> Bool -> Bool -> [Token]
-wrapSignature xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOSig]
+splitSignature :: U.Signature -> [T.Text] -> DelimiterToken -> [Token]
+splitSignature signature frequentWords delimiterToken = concatMap (\(name, preterm) -> wrapPair (textToToken name frequentWords ++ [COMMA] ++ splitPreterm preterm frequentWords delimiterToken) delimiterToken) signature
 
-wrapContext :: [Token] -> Bool -> Bool -> [Token]
-wrapContext xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOCon]
+wrapSignature :: [Token] -> DelimiterToken -> [Token]
+wrapSignature xs Paren = [LPAREN] ++ xs ++ [RPAREN]
+wrapSignature xs Sep = xs ++ [SEP]
+wrapSignature xs Eo = xs ++ [EOSig]
+wrapSignature xs Unused = xs
 
-wrapTerm ::[Token] -> Bool -> Bool -> [Token]
-wrapTerm xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs ++ [SEP] else xs ++ [EOTerm]
+wrapContext :: [Token] -> DelimiterToken -> [Token]
+wrapContext xs Paren = [LPAREN] ++ xs ++ [RPAREN]
+wrapContext xs Sep = xs ++ [SEP]
+wrapContext xs Eo = xs ++ [EOCon]
+wrapContext xs Unused = xs
 
-wrapTyp :: [Token] -> Bool -> Bool -> [Token]
-wrapTyp xs isParen isSep =
-  if isParen then [LPAREN] ++ xs ++ [RPAREN]
-  else if isSep then xs else xs ++ [EOTyp]
+wrapTerm ::[Token] -> DelimiterToken -> [Token]
+wrapTerm xs Paren = [LPAREN] ++ xs ++ [RPAREN]
+wrapTerm xs Sep = xs ++ [SEP]
+wrapTerm xs Eo = xs ++ [EOTerm]
+wrapTerm xs Unused = xs
 
-splitJudgment :: U.Judgment -> [T.Text] -> Bool -> Bool -> [Token]
-splitJudgment judgment frequentWords isParen isSep =
-  wrapSignature (splitSignature (U.signtr judgment) frequentWords isParen isSep) isParen isSep ++
-  wrapContext (splitPreterms (U.contxt judgment) frequentWords isParen isSep) isParen isSep ++
-  wrapTerm (splitPreterm (U.trm judgment) frequentWords isParen isSep) isParen isSep ++
-  wrapTyp (splitPreterm (U.typ judgment) frequentWords isParen isSep) isParen isSep
+wrapTyp :: [Token] -> DelimiterToken -> [Token]
+wrapTyp xs Paren = [LPAREN] ++ xs ++ [RPAREN]
+wrapTyp xs Sep = xs ++ [SEP]
+wrapTyp xs Eo = xs ++ [EOTyp]
+wrapTyp xs Unused = xs
+
+splitJudgment :: U.Judgment -> [T.Text] -> DelimiterToken -> [Token]
+splitJudgment judgment frequentWords delimiterToken =
+  wrapSignature (splitSignature (U.signtr judgment) frequentWords delimiterToken) delimiterToken ++
+  wrapContext (splitPreterms (U.contxt judgment) frequentWords delimiterToken) delimiterToken ++
+  wrapTerm (splitPreterm (U.trm judgment) frequentWords delimiterToken) delimiterToken ++
+  wrapTyp (splitPreterm (U.typ judgment) frequentWords delimiterToken) delimiterToken
