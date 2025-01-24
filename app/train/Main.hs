@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BlockArguments #-}
 
 import GHC.Generics                   --base
 import Control.Monad (forM)
@@ -8,7 +9,6 @@ import Data.Function(fix)
 import System.Random.Shuffle (shuffleM)
 import System.Directory (listDirectory)
 import System.FilePath ((</>))
-import qualified Data.Text.IO as T    --text
 import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
@@ -120,20 +120,42 @@ splitByLabel dataset = do
           splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
       loop (i + 1, tail remainingData, splittedData')
 
--- (training, validation, test)
-smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Maybe Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
-smoothData splittedData threshold = do
-  flip fix (0 :: Int, splittedData, [], [], []) $ \loop (i, remainingData, trainDataAcc, validDataAcc, testDataAcc) -> do
-    if remainingData == [] then return (trainDataAcc, validDataAcc, testDataAcc)
+partition :: Int -> [a] -> [[a]]
+partition n xs = go n xs
+  where
+    len = length xs
+    baseSize = len `div` n
+    remainder = len `mod` n
+
+    -- Helper function to calculate size for current partition
+    getSizeForPartition i
+      | i <= remainder = baseSize + 1
+      | otherwise      = baseSize
+
+    -- Main recursive function
+    go :: Int -> [a] -> [[a]]
+    go parts lst
+      | parts <= 0 = []
+      | null lst   = []
+      | parts == 1 = [lst]
+      | otherwise  = currentPart : go (parts - 1) rest
+      where
+        currentSize = getSizeForPartition parts
+        (currentPart, rest) = splitAt currentSize lst
+
+splitDataForCrossValidation :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Int -> Int -> IO [[([Token], QT.DTTrule)]]
+splitDataForCrossValidation splittedDataByLabel threshold n = do
+  let initialSplittedDataList = replicate n []
+  flip fix (0 :: Int, splittedDataByLabel, initialSplittedDataList) $ \loop (i, datalist, splittedDataList) -> do
+    if datalist == [] then return splittedDataList
     else do
-      let (_, dataList) = head remainingData
-      shuffledData <- shuffleM dataList
-      let limitedData = case threshold of
-            Nothing -> shuffledData
-            Just threshold' -> take threshold' shuffledData
-          (trainData, restData) = splitAt (length limitedData * 7 `div` 10) limitedData
-          (validData, testData) = splitAt (length restData * 5 `div` 10) restData
-      loop (i + 1, tail remainingData, trainDataAcc ++ trainData, validDataAcc ++ validData, testDataAcc ++ testData)
+      let (_, datas) = head datalist
+          rest = tail datalist
+      shuffledData <- shuffleM datas
+      let takeThreshold = take threshold shuffledData
+          splittedData = partition n takeThreshold
+          newSplittedDataList = zipWith (++) splittedDataList splittedData
+      loop (i + 1, rest, newSplittedDataList)
 
 main :: IO()
 main = do
@@ -161,12 +183,11 @@ main = do
   let countedRules = countRule ruleList
   print $ "countedRules " ++ show countedRules
   splitedData <- splitByLabel (zip constructorData ruleList)
-  (trainData, validData, testData) <- smoothData splitedData Nothing
+  crossValidationData <- splitDataForCrossValidation splitedData 450 iter
 
-  let countedTrainRules = countRule $ map (\(_, rule) -> rule) trainData
-  print $ "countedRules (training data) " ++ show countedTrainRules
-
-  let device = Device CUDA 0
+  currentTime <- getZonedTime
+  let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
+      device = Device CUDA 0
       biDirectional = bi
       embDim = emb
       numOfLayers = l
@@ -186,8 +207,10 @@ main = do
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
+    let validData = crossValidationData !! (epoc - 1)
+        trainData = concat $ take (epoc - 1) crossValidationData ++ drop epoc crossValidationData
     shuffledTrainData <- shuffleM trainData
-    ((trainedModel', _, _), trainValidLossPair) <- mapAccumM shuffledTrainData (model, 0, 0) $ \dat (mdl, currentSumLoss, i) -> do
+    ((trainedModel', _, _), trainLossList) <- mapAccumM shuffledTrainData (model, 0, 0) $ \dat (mdl, currentSumLoss, i) -> do
       performGC
       output' <- forward device mdl dat biDirectional
       performGC
@@ -200,58 +223,35 @@ main = do
           u <- update mdl optimizer sumLoss learningRate
           performGC
           let (newModel, _) = u
-          validLosses <- forM validData $ \dataPoint -> do
-            validOutput' <- forward device mdl dataPoint biDirectional
-            performGC
-            let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
-                loss' = nllLoss' groundTruthIndex' validOutput'
-                validLossValue = (asValue loss') :: Float
-            return validLossValue
-          let validLoss = sum validLosses / fromIntegral (length validLosses)
-          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral numberOfSteps) :: Float) ++ " validLoss " ++ show validLoss
-          return ((newModel, 0, i + 1), (lossValue, validLoss))
+          print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral numberOfSteps) :: Float)
+          return ((newModel, 0, i + 1), lossValue)
         else do
-          return ((mdl, sumLoss, i + 1), (lossValue, 0))
-
-    let (trainLoss', validLoss') = unzip trainValidLossPair
-        avgTrainLoss = sum trainLoss' / fromIntegral (length trainLoss')
-        avgValidLoss = sum validLoss' / fromIntegral (length shuffledTrainData `div` numberOfSteps)
-    print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
+          return ((mdl, sumLoss, i + 1), lossValue)
+    pairs <- forM validData $ \dataPoint -> do
+      validOutput' <- forward device trainedModel' dataPoint biDirectional
+      performGC
+      let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
+          loss' = nllLoss' groundTruthIndex' validOutput'
+          validLossValue = (asValue loss') :: Float
+          predictedClassIndex' = argmax (Dim 1) KeepDim validOutput'
+          label = toEnum (asValue predictedClassIndex' :: Int) :: QT.DTTrule
+      return (validLossValue, label)
+    let (validLosses, predictedLabel) = unzip pairs
+        validLoss = sum validLosses / fromIntegral (length validLosses)
+        classificationReport = showClassificationReport (length allLabels) (zip predictedLabel (snd $ unzip $ validData))
+        confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ "_epoc" ++ show epoc ++ ".png"
+        classificationReportFileName = "trained_data/classification-report" ++ timeString ++ "_epoc" ++ show epoc ++ ".txt"
+    B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
+    drawConfusionMatrix confusionMatrixFileName (length allLabels) (zip predictedLabel (snd $ unzip $ validData))
+    let avgTrainLoss = sum trainLossList / fromIntegral (length trainLossList)
+    print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show validLoss
     print "----------------"
 
-    return (trainedModel', (avgTrainLoss, avgValidLoss))
+    return (trainedModel', (avgTrainLoss, validLoss))
 
-  currentTime <- getZonedTime
-  let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
-      modelFileName = "trained_data/seq-class" ++ timeString ++ ".model"
+  let modelFileName = "trained_data/seq-class" ++ timeString ++ ".model"
       graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
-      confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
-      classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
       learningCurveTitle = "type: " ++ show delimiterToken ++ " s: " ++ show numberOfSteps ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
-
-  pairs <- forM testData $ \dataPoint -> do
-    output' <- forward device trainedModel dataPoint biDirectional
-    let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
-        predictedClassIndex = argmax (Dim 1) KeepDim output'
-        isCorrect = groundTruthIndex == predictedClassIndex
-        label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
-    return (isCorrect, label)
-
-  let (isCorrects, predictedLabel) = unzip pairs
-
-  print $ zip predictedLabel (snd $ unzip $ testData)
-
-  let classificationReport = showClassificationReport (length allLabels) (zip predictedLabel (snd $ unzip $ testData))
-  T.putStr classificationReport
-
-  B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
-
-  drawConfusionMatrix confusionMatrixFileName (length allLabels) (zip predictedLabel (snd $ unzip $ testData))
-
-  print $ "isCorrects " ++ show isCorrects
-
-  let accuracy = (fromIntegral (length (filter id isCorrects)) / fromIntegral (length isCorrects)) :: Double
-  print $ "Accuracy: " ++ show accuracy
