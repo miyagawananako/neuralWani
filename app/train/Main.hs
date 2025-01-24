@@ -187,17 +187,16 @@ main = do
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
     shuffledTrainData <- shuffleM trainData
-    flip fix (0 :: Int, model, shuffledTrainData, 0, [], 0 :: Tensor) $ \loop (i, mdl, data_list, sumLossValue, validLossList, currentSumLoss) -> do
+    ((trainedModel', _, _), trainValidLossPair) <- mapAccumM shuffledTrainData (model, 0, 0) $ \dat (mdl, currentSumLoss, i) -> do
       performGC
-      if length data_list > 0 then do
-        let (oneData, restDataList) = splitAt 1 data_list
-        output' <- forward device mdl (head oneData) biDirectional
-        performGC
-        let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd (head oneData)) :: Int])
-            loss = nllLoss' groundTruthIndex output'
-            lossValue = (asValue loss) :: Float
-            sumLoss = currentSumLoss + loss
-        if (i + 1) `mod` numberOfSteps == 0 then do
+      output' <- forward device mdl dat biDirectional
+      performGC
+      let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dat) :: Int])
+          loss = nllLoss' groundTruthIndex output'
+          lossValue = (asValue loss) :: Float
+          sumLoss = currentSumLoss + loss
+      if (i + 1) `mod` numberOfSteps == 0
+        then do
           u <- update mdl optimizer sumLoss learningRate
           performGC
           let (newModel, _) = u
@@ -210,16 +209,17 @@ main = do
             return validLossValue
           let validLoss = sum validLosses / fromIntegral (length validLosses)
           print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show (asValue (sumLoss / fromIntegral numberOfSteps) :: Float) ++ " validLoss " ++ show validLoss
-          loop (i + 1, newModel, restDataList, sumLossValue + lossValue, validLossList ++ [validLoss], 0)
+          return ((newModel, 0, i + 1), (lossValue, validLoss))
         else do
-          loop (i + 1, mdl, restDataList, sumLossValue + lossValue, validLossList, sumLoss)
-      else do
-        let avgTrainLoss = sumLossValue / fromIntegral (length trainData)
-            avgValidLoss = sum validLossList / fromIntegral (length validLossList)
-        print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
-        print "----------------"
+          return ((mdl, sumLoss, i + 1), (lossValue, 0))
 
-        return (mdl, (avgTrainLoss, avgValidLoss))
+    let (trainLoss', validLoss') = unzip trainValidLossPair
+        avgTrainLoss = sum trainLoss' / fromIntegral (length trainLoss')
+        avgValidLoss = sum validLoss' / fromIntegral (length shuffledTrainData `div` numberOfSteps)
+    print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
+    print "----------------"
+
+    return (trainedModel', (avgTrainLoss, avgValidLoss))
 
   currentTime <- getZonedTime
   let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
