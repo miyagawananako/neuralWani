@@ -47,6 +47,7 @@ library
     , nlp-tools
     , random
     , random-shuffle
+    , split
     , store
     , text
     , time
@@ -77,6 +78,7 @@ executable preprocess-exe
     , nlp-tools
     , random
     , random-shuffle
+    , split
     , store
     , text
     , time
@@ -107,6 +109,7 @@ executable train-exe
     , nlp-tools
     , random
     , random-shuffle
+    , split
     , store
     , text
     , time
@@ -138,6 +141,7 @@ test-suite test
     , nlp-tools
     , random
     , random-shuffle
+    , split
     , store
     , text
     , time

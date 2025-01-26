@@ -37,6 +37,7 @@ dependencies:
 - random
 - directory
 - filepath
+- split
 
 ghc-options:
 - -Wall
