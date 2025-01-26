@@ -132,7 +132,7 @@ smoothData splittedData threshold = do
       let limitedData = case threshold of
             Nothing -> shuffledData
             Just threshold' -> take threshold' shuffledData
-          (trainData, restData) = splitAt (length limitedData * 7 `div` 10) limitedData
+          (trainData, restData) = splitAt (length limitedData * 8 `div` 10) limitedData
           (validData, testData) = splitAt (length restData * 5 `div` 10) restData
       loop (i + 1, tail remainingData, trainDataAcc ++ trainData, validDataAcc ++ validData, testDataAcc ++ testData)
 
@@ -162,7 +162,7 @@ main = do
   let countedRules = countRule ruleList
   print $ "countedRules " ++ show countedRules
   splitedData <- splitByLabel (zip constructorData ruleList)
-  (trainData, validData, testData) <- smoothData splitedData Nothing
+  (trainData, validData, testData) <- smoothData splitedData (Just 450)
 
   let countedTrainRules = countRule $ map (\(_, rule) -> rule) trainData
   print $ "countedRules (training data) " ++ show countedTrainRules
