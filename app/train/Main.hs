@@ -23,7 +23,7 @@ import qualified DTS.QueryTypes as QT
 --hasktorch
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
 import Torch.Device       (Device(..),DeviceType(..))
-import Torch.Functional   (Dim(..),nllLoss',argmax,KeepDim(..), transpose2D, embedding', logSoftmax)
+import Torch.Functional   (Dim(..),nllLoss',argmax,KeepDim(..), embedding', logSoftmax)
 import Torch.NN           (Parameter,Parameterized,Randomizable,sample, flattenParameters)
 import Torch.Autograd     (IndependentTensor(..),makeIndependent)
 import Torch.Optim        (mkAdam)
@@ -75,16 +75,16 @@ instance Randomizable HypParams Params where
     randomTensor2 <- randnIO' dev [d * num_layers, hidden_size]
     Params
       <$> sample (LstmHypParams dev bi_directional emb_dim hidden_size num_layers has_bias proj_size)
-      <*> (makeIndependent =<< randnIO' dev [emb_dim, vocab_size])
+      <*> (makeIndependent =<< randnIO' dev [vocab_size, emb_dim])
       <*> sample (LinearHypParams dev has_bias (d * hidden_size) num_rules)
       <*> pure (0.01 * randomTensor1, 0.01 * randomTensor2)
 
 -- | LSTMモデルの順伝播
 forward :: Device -> Params -> ([Token], QT.DTTrule) -> Bool -> IO Tensor
 forward device Params{..} dataset bi_directional = do
-  let inputIndices = map (\w -> fromEnum w :: Int) $ fst dataset
+  let inputIndices = map fromEnum $ fst dataset
       idxs = toDevice device $ asTensor (inputIndices :: [Int])
-      input = embedding' (transpose2D $ toDependent w_emb) idxs
+      input = embedding' (toDependent w_emb) idxs
       dropout_prob = Nothing
       (_, (h, _)) = lstmLayers lstm_params dropout_prob hc $ input
   lastOutput <- extractLastOutput h bi_directional
@@ -114,27 +114,29 @@ countRule rules = List.sortOn (Down . snd) $ Map.toList ruleFreqMap
 splitByLabel :: [([Token], QT.DTTrule)] -> IO [(QT.DTTrule, [([Token], QT.DTTrule)])]
 splitByLabel dataset = do
   flip fix (0 :: Int, dataset, []) $ \loop (i, remainingData, splittedData) -> do
-    if remainingData == [] then return splittedData
-    else do
-      let (tokens', rule) = head remainingData
-          data' = (tokens', rule)
-          splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
-      loop (i + 1, tail remainingData, splittedData')
+    if remainingData == []
+      then return splittedData
+      else do
+        let (tokens', rule) = head remainingData
+            data' = (tokens', rule)
+            splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
+        loop (i + 1, tail remainingData, splittedData')
 
 -- (training, validation, test)
 smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Maybe Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
 smoothData splittedData threshold = do
   flip fix (0 :: Int, splittedData, [], [], []) $ \loop (i, remainingData, trainDataAcc, validDataAcc, testDataAcc) -> do
-    if remainingData == [] then return (trainDataAcc, validDataAcc, testDataAcc)
-    else do
-      let (_, dataList) = head remainingData
-      shuffledData <- shuffleM dataList
-      let limitedData = case threshold of
-            Nothing -> shuffledData
-            Just threshold' -> take threshold' shuffledData
-          (trainData, restData) = splitAt (length limitedData * 8 `div` 10) limitedData
-          (validData, testData) = splitAt (length restData * 5 `div` 10) restData
-      loop (i + 1, tail remainingData, trainDataAcc ++ trainData, validDataAcc ++ validData, testDataAcc ++ testData)
+    if remainingData == []
+      then return (trainDataAcc, validDataAcc, testDataAcc)
+      else do
+        let (_, dataList) = head remainingData
+        shuffledData <- shuffleM dataList
+        let limitedData = case threshold of
+              Nothing -> shuffledData
+              Just threshold' -> take threshold' shuffledData
+            (trainData, restData) = splitAt (length limitedData * 8 `div` 10) limitedData
+            (validData, testData) = splitAt (length restData * 5 `div` 10) restData
+        loop (i + 1, tail remainingData, trainDataAcc ++ trainData, validDataAcc ++ validData, testDataAcc ++ testData)
 
 main :: IO()
 main = do
@@ -154,17 +156,17 @@ main = do
   jsemDatasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
 
   let dataset = waniTestDataset ++ concat jsemDatasets
-      wordList = concatMap (\(judgment, _) -> getConstantSymbolsFromJudgment judgment) dataset
+      wordList = concatMap (getConstantSymbolsFromJudgment . fst) dataset
       frequentWords = getFrequentConstantSymbols wordList
       constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords delimiterToken) dataset
-      ruleList = map (\(_, rule) -> rule) dataset
+      ruleList = map snd dataset
 
   let countedRules = countRule ruleList
   print $ "countedRules " ++ show countedRules
   splitedData <- splitByLabel (zip constructorData ruleList)
   (trainData, validData, testData) <- smoothData splitedData (Just 450)
 
-  let countedTrainRules = countRule $ map (\(_, rule) -> rule) trainData
+  let countedTrainRules = countRule $ map snd trainData
   print $ "countedRules (training data) " ++ show countedTrainRules
 
   let device = Device CUDA 0
