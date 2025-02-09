@@ -4,7 +4,6 @@
 
 import GHC.Generics                   --base
 import Control.Monad (forM)
-import Data.Function(fix)
 import System.Random.Shuffle (shuffleM)
 import System.Directory (listDirectory)
 import System.FilePath ((</>))
@@ -113,32 +112,28 @@ countRule rules = List.sortOn (Down . snd) $ Map.toList ruleFreqMap
 
 -- 規則ごとにデータを分割
 splitByLabel :: [([Token], QT.DTTrule)] -> IO [(QT.DTTrule, [([Token], QT.DTTrule)])]
-splitByLabel dataset = do
-  flip fix (0 :: Int, dataset, []) $ \loop (i, remainingData, splittedData) -> do
-    if remainingData == []
-      then return splittedData
-      else do
-        let (tokens', rule) = head remainingData
-            data' = (tokens', rule)
-            splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
-        loop (i + 1, tail remainingData, splittedData')
+splitByLabel dataset = return $ splitByLabel' dataset Map.empty
+  where
+    splitByLabel' [] acc = Map.toList acc
+    splitByLabel' ((tokens', rule):xs) acc =
+      let data' = (tokens', rule)
+          acc' = Map.insertWith (++) rule [data'] acc
+      in splitByLabel' xs acc'
 
 -- 引数はsplitByLabelで規則ごとに分割されたデータ, 規則ごとのデータ数
 -- (training, validation, test)
 smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Maybe Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
-smoothData splittedData threshold = do
-  flip fix (0 :: Int, splittedData, [], [], []) $ \loop (i, remainingData, trainDataAcc, validDataAcc, testDataAcc) -> do
-    if remainingData == []
-      then return (trainDataAcc, validDataAcc, testDataAcc)
-      else do
-        let (_, dataList) = head remainingData
-        shuffledData <- shuffleM dataList
-        let limitedData = case threshold of
-              Nothing -> shuffledData
-              Just threshold' -> take threshold' shuffledData
-            (trainData, restData) = splitAt (length limitedData * 8 `div` 10) limitedData
-            (validData, testData) = splitAt (length restData * 5 `div` 10) restData
-        loop (i + 1, tail remainingData, trainDataAcc ++ trainData, validDataAcc ++ validData, testDataAcc ++ testData)
+smoothData splittedData threshold = smoothData' splittedData [] [] []
+  where
+    smoothData' [] trainDataAcc validDataAcc testDataAcc = return (trainDataAcc, validDataAcc, testDataAcc)
+    smoothData' ((_, dataList):remainingData) trainDataAcc validDataAcc testDataAcc = do
+      shuffledData <- shuffleM dataList
+      let limitedData = case threshold of
+            Nothing -> shuffledData
+            Just threshold' -> take threshold' shuffledData
+          (trainData, restData) = splitAt (length limitedData * 8 `div` 10) limitedData
+          (validData, testData) = splitAt (length restData * 5 `div` 10) restData
+      smoothData' remainingData (trainDataAcc ++ trainData) (validDataAcc ++ validData) (testDataAcc ++ testData)
 
 main :: IO()
 main = do
@@ -199,13 +194,13 @@ main = do
 
     ((trainedModel', _), lossPair) <- mapAccumM batchedTrainData' (model, 0 :: Int) $ \dataList (mdl, i) -> do
       performGC
-      (sumLoss', losses) <- mapAccumM dataList (0 :: Tensor) $ \dat (currentSumLoss) -> do
+      (sumLoss', losses) <- mapAccumM dataList (0 :: Tensor) $ \dat (accumulatedLoss) -> do
         output' <- forward device mdl dat biDirectional
         performGC
         let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dat) :: Int])
             loss = nllLoss' groundTruthIndex output'
             lossValue = (asValue loss) :: Float
-            sumLoss = currentSumLoss + loss
+            sumLoss = accumulatedLoss + loss
         return (sumLoss, lossValue)
 
       (newModel, _) <- update mdl optimizer sumLoss' learningRate
