@@ -87,7 +87,7 @@ forward device Params{..} dataset bi_directional = do
       input = embedding' (toDependent w_emb) idxs
       dropout_prob = Nothing
       (_, (h, _)) = lstmLayers lstm_params dropout_prob hc $ input
-  lastOutput <- extractLastOutput h bi_directional
+  lastOutput <- extractLastOutput h bi_directional  -- 最後の層の出力を取得（双方向の場合は2倍の次元）
   let output = linearLayer mlp_params lastOutput
       output' = logSoftmax (Dim 1) output
   pure output'
@@ -111,6 +111,7 @@ countRule rules = List.sortOn (Down . snd) $ Map.toList ruleFreqMap
     ruleFreqMap :: Map.Map QT.DTTrule Int
     ruleFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty rules
 
+-- 規則ごとにデータを分割
 splitByLabel :: [([Token], QT.DTTrule)] -> IO [(QT.DTTrule, [([Token], QT.DTTrule)])]
 splitByLabel dataset = do
   flip fix (0 :: Int, dataset, []) $ \loop (i, remainingData, splittedData) -> do
@@ -122,6 +123,7 @@ splitByLabel dataset = do
             splittedData' = Map.toList $ Map.insertWith (++) rule [data'] (Map.fromList splittedData)
         loop (i + 1, tail remainingData, splittedData')
 
+-- 引数はsplitByLabelで規則ごとに分割されたデータ, 規則ごとのデータ数
 -- (training, validation, test)
 smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Maybe Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
 smoothData splittedData threshold = do
