@@ -62,7 +62,7 @@ data Params = Params {
   lstm_params :: LstmParams,
   w_emb :: Parameter,
   mlp_params :: LinearParams,
-  h0c0 :: (Tensor, Tensor)
+  hc :: (Tensor, Tensor)
   } deriving (Show, Generic)
 
 instance Parameterized Params
@@ -86,7 +86,7 @@ forward device Params{..} dataset bi_directional = do
       idxs = toDevice device $ asTensor (inputIndices :: [Int])
       input = embedding' (transpose2D $ toDependent w_emb) idxs
       dropout_prob = Nothing
-      (_, (h, _)) = lstmLayers lstm_params dropout_prob h0c0 $ input
+      (_, (h, _)) = lstmLayers lstm_params dropout_prob hc $ input
   lastOutput <- extractLastOutput h bi_directional
   let output = linearLayer mlp_params lastOutput
       output' = logSoftmax (Dim 1) output
@@ -178,22 +178,22 @@ main = do
       numOfRules = length allLabels
       hyperParams = HypParams device biDirectional embDim hasBias projSize vocabSize numOfLayers hiddenSize numOfRules
       learningRate = toDevice device (asTensor (lr :: Float))
-      numberOfSteps = steps
+      numberOfBatch = steps
   print $ "hyperParams " ++ show hyperParams
   print $ "learningRate " ++ show learningRate
-  print $ "numberOfSteps " ++ show numberOfSteps
+  print $ "numberOfBatch " ++ show numberOfBatch
   print $ "iter " ++ show iter
   print $ "delimiterToken " ++ show delimiterToken
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
   ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
     shuffledTrainData <- shuffleM trainData
-    let trainStepData = List.chunksOf numberOfSteps shuffledTrainData
-        trainStepData' = if length (last trainStepData) < numberOfSteps
-                          then init trainStepData
-                          else trainStepData
+    let batchedTrainData = List.chunksOf numberOfBatch shuffledTrainData
+        batchedTrainData' = if length (last batchedTrainData) < numberOfBatch
+                          then init batchedTrainData
+                          else batchedTrainData
 
-    ((trainedModel', _), trainValidLossPair) <- mapAccumM trainStepData' (model, 0 :: Int) $ \dataList (mdl, i) -> do
+    ((trainedModel', _), lossPair) <- mapAccumM batchedTrainData' (model, 0 :: Int) $ \dataList (mdl, i) -> do
       performGC
       (sumLoss', losses) <- mapAccumM dataList (0 :: Tensor) $ \dat (currentSumLoss) -> do
         output' <- forward device mdl dat biDirectional
@@ -204,22 +204,20 @@ main = do
             sumLoss = currentSumLoss + loss
         return (sumLoss, lossValue)
 
-      u <- update mdl optimizer sumLoss' learningRate
+      (newModel, _) <- update mdl optimizer sumLoss' learningRate
       performGC
-      let (newModel, _) = u
       validLosses <- forM validData $ \dataPoint -> do
         validOutput' <- forward device mdl dataPoint biDirectional
         performGC
         let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
-            loss' = nllLoss' groundTruthIndex' validOutput'
-            validLossValue = (asValue loss') :: Float
+            validLossValue = (asValue (nllLoss' groundTruthIndex' validOutput')) :: Float
         return validLossValue
       let validLoss = sum validLosses / fromIntegral (length validLosses)
       let trainLoss = sum losses / fromIntegral (length losses)
       print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show trainLoss ++ " validLoss " ++ show validLoss
       return ((newModel, i + 1), (trainLoss, validLoss))
 
-    let (trainLoss', validLoss') = unzip trainValidLossPair
+    let (trainLoss', validLoss') = unzip lossPair
         avgTrainLoss = sum trainLoss' / fromIntegral (length trainLoss')
         avgValidLoss = sum validLoss' / fromIntegral (length validLoss')
     print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
@@ -233,7 +231,7 @@ main = do
       graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
       confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
       classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
-      learningCurveTitle = "type: " ++ show delimiterToken ++ " bi: " ++ show biDirectional ++ " s: " ++ show numberOfSteps ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
+      learningCurveTitle = "type: " ++ show delimiterToken ++ " bi: " ++ show biDirectional ++ " s: " ++ show numberOfBatch ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
   saveParams trainedModel modelFileName
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
