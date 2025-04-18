@@ -30,6 +30,14 @@ dependencies:
 - hasktorch-tools
 - text
 - containers
+- nlp-tools
+- random-shuffle
+- cereal-text
+- time
+- random
+- directory
+- filepath
+- split
 
 ghc-options:
 - -Wall
@@ -59,6 +67,17 @@ executables:
   preprocess-exe:
     main:                Main.hs
     source-dirs:         app/preprocess
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - neuralWani
+
+tests:
+  test:
+    main:                Main.hs
+    source-dirs:         test
     ghc-options:
     - -threaded
     - -rtsopts

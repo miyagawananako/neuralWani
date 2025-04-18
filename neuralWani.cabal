@@ -25,7 +25,7 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
+      SplitJudgment
   other-modules:
       Paths_neuralWani
   autogen-modules:
@@ -36,13 +36,21 @@ library
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
     , list-t
+    , nlp-tools
+    , random
+    , random-shuffle
+    , split
     , store
     , text
+    , time
     , waniTEST
   default-language: Haskell2010
 
@@ -58,14 +66,22 @@ executable preprocess-exe
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
     , list-t
     , neuralWani
+    , nlp-tools
+    , random
+    , random-shuffle
+    , split
     , store
     , text
+    , time
     , waniTEST
   default-language: Haskell2010
 
@@ -81,13 +97,53 @@ executable train-exe
   build-depends:
       base >=4.7 && <5
     , bytestring
+    , cereal-text
     , containers
+    , directory
+    , filepath
     , hasktorch >=0.2
     , hasktorch-tools
     , lightblue >=0.3
     , list-t
     , neuralWani
+    , nlp-tools
+    , random
+    , random-shuffle
+    , split
     , store
     , text
+    , time
+    , waniTEST
+  default-language: Haskell2010
+
+test-suite test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_neuralWani
+  autogen-modules:
+      Paths_neuralWani
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , cereal-text
+    , containers
+    , directory
+    , filepath
+    , hasktorch >=0.2
+    , hasktorch-tools
+    , lightblue >=0.3
+    , list-t
+    , neuralWani
+    , nlp-tools
+    , random
+    , random-shuffle
+    , split
+    , store
+    , text
+    , time
     , waniTEST
   default-language: Haskell2010
