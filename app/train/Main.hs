@@ -110,7 +110,7 @@ forward device Params{..} dataset bi_directional = do
       input = embedding' (toDependent w_emb) idxs
       dropout_prob = Nothing
       -- LSTM層を適用
-      (_, (h, _)) = lstmLayers lstm_params dropout_prob hc $ input
+      (_, (h, _)) = lstmLayers lstm_params dropout_prob False hc $ input
   -- 最後の層の出力を取得（双方向の場合は両方向の出力を結合）
   lastOutput <- extractLastOutput h bi_directional
   -- 全結合層とソフトマックスを適用
