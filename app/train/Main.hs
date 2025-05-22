@@ -18,6 +18,7 @@ import qualified Data.List as List
 import qualified Data.List.Split as List
 import           System.Environment (getArgs)
 import System.Mem (performGC)
+import System.Directory (createDirectoryIfMissing)
 import qualified DTS.QueryTypes as QT
 
 --hasktorch関連のインポート
@@ -317,13 +318,17 @@ main = do
 
     return (trainedModel', (avgTrainLoss, avgValidLoss))
 
-  -- 現在時刻の取得（ファイル名に使用）
+  -- 現在時刻の取得（フォルダ名に使用）
   currentTime <- getZonedTime
   let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
-      modelFileName = "trained_data/seq-class" ++ timeString ++ ".model"
-      graphFileName = "trained_data/graph-seq-class" ++ timeString ++ ".png"
-      confusionMatrixFileName = "trained_data/confusion-matrix" ++ timeString ++ ".png"
-      classificationReportFileName = "trained_data/classification-report" ++ timeString ++ ".txt"
+      newFolderPath = "trainedData/type" ++ show delimiterToken ++ "_bi" ++ show biDirectional ++ "_s" ++ show numberOfBatch ++ "_lr" ++ show (asValue learningRate :: Float) ++  "_i" ++ show embDim ++ "_h" ++ show hiddenSize ++ "_layer" ++ show numOfLayers ++ "/" ++ timeString
+
+  createDirectoryIfMissing True newFolderPath
+
+  let modelFileName = newFolderPath ++ "/seq-class" ++ ".model"
+      graphFileName =  newFolderPath ++ "/graph-seq-class"  ++ ".png"
+      confusionMatrixFileName =  newFolderPath ++ "/confusion-matrix" ++ ".png"
+      classificationReportFileName =  newFolderPath ++ "/classification-report" ++ ".txt"
       learningCurveTitle = "type: " ++ show delimiterToken ++ " bi: " ++ show biDirectional ++ " s: " ++ show numberOfBatch ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
 
