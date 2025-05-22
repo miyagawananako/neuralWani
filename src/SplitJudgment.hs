@@ -57,6 +57,9 @@ getConstantSymbolsFromSignature signature = concatMap (\(name, preterm) -> [name
 allowDuplicateWords :: Bool
 allowDuplicateWords = True
 
+isIncludeTerm :: Bool
+isIncludeTerm = False
+
 getConstantSymbolsFromJudgment :: U.Judgment -> [T.Text]
 getConstantSymbolsFromJudgment judgment =
   if allowDuplicateWords
@@ -64,10 +67,14 @@ getConstantSymbolsFromJudgment judgment =
     else Set.toList . Set.fromList $ wordList
   where
     wordList =
-      getConstantSymbolsFromSignature (U.signtr judgment) ++
-      getConstantSymbolsFromPreterms (U.contxt judgment) ++
-      getConstantSymbolsFromPreterm (U.trm judgment) ++
-      getConstantSymbolsFromPreterm (U.typ judgment)
+      if isIncludeTerm
+        then  getConstantSymbolsFromSignature (U.signtr judgment) ++
+              getConstantSymbolsFromPreterms (U.contxt judgment) ++
+              getConstantSymbolsFromPreterm (U.trm judgment) ++
+              getConstantSymbolsFromPreterm (U.typ judgment)
+        else  getConstantSymbolsFromSignature (U.signtr judgment) ++
+              getConstantSymbolsFromPreterms (U.contxt judgment) ++
+              getConstantSymbolsFromPreterm (U.typ judgment)
 
 getFrequentConstantSymbols :: [T.Text] -> [T.Text]
 getFrequentConstantSymbols frequentWords = take 31 $ map fst $ List.sortOn (Down . snd) $ Map.toList constantSymbolsFreqMap
@@ -208,7 +215,11 @@ wrapTyp xs Unused = xs
 
 splitJudgment :: U.Judgment -> [T.Text] -> DelimiterToken -> [Token]
 splitJudgment judgment frequentWords delimiterToken =
-  wrapSignature (splitSignature (U.signtr judgment) frequentWords delimiterToken) delimiterToken ++
-  wrapContext (splitPreterms (U.contxt judgment) frequentWords delimiterToken) delimiterToken ++
-  wrapTerm (splitPreterm (U.trm judgment) frequentWords delimiterToken) delimiterToken ++
-  wrapTyp (splitPreterm (U.typ judgment) frequentWords delimiterToken) delimiterToken
+  if isIncludeTerm
+    then  wrapSignature (splitSignature (U.signtr judgment) frequentWords delimiterToken) delimiterToken ++
+          wrapContext (splitPreterms (U.contxt judgment) frequentWords delimiterToken) delimiterToken ++
+          wrapTerm (splitPreterm (U.trm judgment) frequentWords delimiterToken) delimiterToken ++
+          wrapTyp (splitPreterm (U.typ judgment) frequentWords delimiterToken) delimiterToken
+    else  wrapSignature (splitSignature (U.signtr judgment) frequentWords delimiterToken) delimiterToken ++
+          wrapContext (splitPreterms (U.contxt judgment) frequentWords delimiterToken) delimiterToken ++
+          wrapTyp (splitPreterm (U.typ judgment) frequentWords delimiterToken) delimiterToken
