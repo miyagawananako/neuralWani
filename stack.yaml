@@ -15,10 +15,12 @@ extra-deps:
   - git: http://github.com/DaisukeBekki/JSeM.git
     commit: c2cd39168e267007b4690dbf625329bac57a8185
   - git: git@github.com:miyagawananako/lightblue.git
-    commit: dce5584f5232c7047322435b9183ed0e56e3c0e6
+    commit: 32f128e2e73d74389f7f1622966c4bcd408d8e86
   - git: git@github.com:hinarid/waniTest.git
     commit: 6962393b76b4ebfa8fc5b1018678d2abfcf206e1
-# for hasktorch
+  - git: https://github.com/morning85/parserModules.git
+    commit: 899aae39b8c57866148fb3b19a4ac2f393ffaabd
+  # for hasktorch
   - /home/nanacom/.local/lib/hasktorch/codegen
   - /home/nanacom/.local/lib/hasktorch/libtorch-ffi
   - /home/nanacom/.local/lib/hasktorch/libtorch-ffi-helper
@@ -33,7 +35,7 @@ extra-deps:
   - git: https://github.com/hasktorch/tokenizers
     commit: 9d25f0ba303193e97f8b22b9c93cbc84725886c3
     subdirs:
-    - bindings/haskell/tokenizers-haskell
+      - bindings/haskell/tokenizers-haskell
   - git: https://github.com/hasktorch/typelevel-rewrite-rules
     commit: 4176e10d4de2d1310506c0fcf6a74956d81d59b6
   - git: https://github.com/hasktorch/type-errors-pretty
@@ -46,7 +48,7 @@ extra-deps:
     commit: e4bd3783f4e872b8df29538d9219e41f40378363
   - git: http://github.com/DaisukeBekki/hasktorch-tools.git
     commit: 3f589a6eaf158df972bac922feda22b76f4ab82b
-# for hasktorch-nlp-introduction
+  # for hasktorch-nlp-introduction
   - jsonl-0.2.0.0@sha256:35f8a3816f0b93830008709a8e64c0c69b9bc632a92c54b3be3345bfccba4a5c,1465
 
 allow-newer: true
@@ -55,7 +57,7 @@ build:
   haddock: false
   haddock-arguments:
     haddock-args:
-    - --odir=haddock
+      - --odir=haddock
   open-haddocks: false
   haddock-internal: false
   haddock-hyperlink-source: true
