@@ -245,7 +245,7 @@ main = do
   print $ "countedRules (training data) " ++ show countedTrainRules
 
   -- ハイパーパラメータの設定
-  let device = Device CPU 0                 -- 使用するデバイス（CPU/GPU）
+  let device = Device CUDA 0                 -- 使用するデバイス（CPU/GPU）
       biDirectional = bi                    -- 双方向LSTMを使用するかどうか
       embDim = emb                          -- 埋め込み層の次元数
       numOfLayers = l                       -- LSTMの層数
