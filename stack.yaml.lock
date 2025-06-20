@@ -27,6 +27,17 @@ packages:
     commit: 6962393b76b4ebfa8fc5b1018678d2abfcf206e1
     git: git@github.com:hinarid/waniTest.git
 - completed:
+    commit: 899aae39b8c57866148fb3b19a4ac2f393ffaabd
+    git: https://github.com/morning85/parserModules.git
+    name: parserModules
+    pantry-tree:
+      sha256: 442a3932cae958b87c9bae551cdb53f245623516d74ccf3429d2cc52afada0c8
+      size: 1350
+    version: 0.1.0.0
+  original:
+    commit: 899aae39b8c57866148fb3b19a4ac2f393ffaabd
+    git: https://github.com/morning85/parserModules.git
+- completed:
     hackage: datasets-0.4.0@sha256:9bfd5b54c6c5e1e72384a890cf29bf85a02007e0a31c98753f7d225be3c7fa6a,4929
     pantry-tree:
       sha256: 19c2cb354a1f849ac4dbc9d104a17ee675ee03bc689ea1abdb66171a4b8e994f

@@ -45,6 +45,7 @@ library
     , lightblue >=0.3
     , list-t
     , nlp-tools
+    , parserModules
     , random
     , random-shuffle
     , split
@@ -76,6 +77,7 @@ executable preprocess-exe
     , list-t
     , neuralWani
     , nlp-tools
+    , parserModules
     , random
     , random-shuffle
     , split
@@ -107,6 +109,7 @@ executable train-exe
     , list-t
     , neuralWani
     , nlp-tools
+    , parserModules
     , random
     , random-shuffle
     , split
@@ -139,6 +142,7 @@ test-suite test
     , list-t
     , neuralWani
     , nlp-tools
+    , parserModules
     , random
     , random-shuffle
     , split

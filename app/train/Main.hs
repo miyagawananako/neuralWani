@@ -225,8 +225,14 @@ main = do
   jsemFiles <- listDirectory "data/JSeM/"
   jsemDatasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
 
+  -- 形成則を含めるかどうか
+  let isIncludeF = False
+
   -- データセットの前処理
-  let dataset = waniTestDataset ++ concat jsemDatasets
+  let originalDataset = waniTestDataset ++ concat jsemDatasets
+      dataset = if isIncludeF
+                then originalDataset
+                else filter (\(_, rule) -> (rule /= QT.TypeF) && (rule /= QT.PiF) && (rule /= QT.SigmaF) && (rule /= QT.DisjF) && (rule /= QT.BotF) && (rule /= QT.TopF) && (rule /= QT.EnumF) && (rule /= QT.IqF) && (rule /= QT.NatF)) originalDataset
       wordList = concatMap (getConstantSymbolsFromJudgment . fst) dataset
       frequentWords = getFrequentConstantSymbols wordList
       constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords delimiterToken) dataset
@@ -321,7 +327,9 @@ main = do
   -- 現在時刻の取得（フォルダ名に使用）
   currentTime <- getZonedTime
   let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
-      newFolderPath = "trainedData/type" ++ show delimiterToken ++ "_bi" ++ show biDirectional ++ "_s" ++ show numberOfBatch ++ "_lr" ++ show (asValue learningRate :: Float) ++  "_i" ++ show embDim ++ "_h" ++ show hiddenSize ++ "_layer" ++ show numOfLayers ++ "/" ++ timeString
+      newFolderPath = if isIncludeF
+                     then "trainedData/type" ++ show delimiterToken ++ "_bi" ++ show biDirectional ++ "_s" ++ show numberOfBatch ++ "_lr" ++ show (asValue learningRate :: Float) ++  "_i" ++ show embDim ++ "_h" ++ show hiddenSize ++ "_layer" ++ show numOfLayers ++ "/" ++ timeString
+                     else "trainedDataWithoutF/type" ++ show delimiterToken ++ "_bi" ++ show biDirectional ++ "_s" ++ show numberOfBatch ++ "_lr" ++ show (asValue learningRate :: Float) ++  "_i" ++ show embDim ++ "_h" ++ show hiddenSize ++ "_layer" ++ show numOfLayers ++ "/" ++ timeString
 
   createDirectoryIfMissing True newFolderPath
 

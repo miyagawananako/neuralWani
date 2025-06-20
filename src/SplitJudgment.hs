@@ -42,10 +42,10 @@ getConstantSymbolsFromPreterm (U.Disj a b) = getConstantSymbolsFromPreterm a ++ 
 getConstantSymbolsFromPreterm (U.Iota _ m) = getConstantSymbolsFromPreterm m
 getConstantSymbolsFromPreterm (U.Unpack p h m n) = getConstantSymbolsFromPreterm p ++ getConstantSymbolsFromPreterm h ++ getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
 getConstantSymbolsFromPreterm (U.Succ n) = getConstantSymbolsFromPreterm n
-getConstantSymbolsFromPreterm (U.Natrec n e f) = getConstantSymbolsFromPreterm n ++ getConstantSymbolsFromPreterm e ++ getConstantSymbolsFromPreterm f
+getConstantSymbolsFromPreterm (U.Natrec p n e f) = getConstantSymbolsFromPreterm p ++ getConstantSymbolsFromPreterm n ++ getConstantSymbolsFromPreterm e ++ getConstantSymbolsFromPreterm f
 getConstantSymbolsFromPreterm (U.Eq a m n) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
 getConstantSymbolsFromPreterm (U.Refl a m) = getConstantSymbolsFromPreterm a ++ getConstantSymbolsFromPreterm m
-getConstantSymbolsFromPreterm (U.Idpeel m n) = getConstantSymbolsFromPreterm m ++ getConstantSymbolsFromPreterm n
+getConstantSymbolsFromPreterm (U.Idpeel p e r) = getConstantSymbolsFromPreterm p ++ getConstantSymbolsFromPreterm e ++ getConstantSymbolsFromPreterm r
 getConstantSymbolsFromPreterm _ = []
 
 getConstantSymbolsFromPreterms :: [U.Preterm] -> [T.Text]
@@ -172,10 +172,10 @@ splitPreterm preterm frequentWords delimiterToken = case preterm of
   U.Nat -> wrapPreterm [Nat'] delimiterToken
   U.Zero -> wrapPreterm [Zero'] delimiterToken
   U.Succ m -> wrapPreterm ([Succ'] ++ splitPreterm m frequentWords delimiterToken) delimiterToken
-  U.Natrec n e f -> wrapPreterm ([Natrec'] ++ splitPreterm n frequentWords delimiterToken ++ splitPreterm e frequentWords delimiterToken ++ splitPreterm f frequentWords delimiterToken) delimiterToken
+  U.Natrec p n e f -> wrapPreterm ([Natrec'] ++ splitPreterm p frequentWords delimiterToken ++ splitPreterm n frequentWords delimiterToken ++ splitPreterm e frequentWords delimiterToken ++ splitPreterm f frequentWords delimiterToken) delimiterToken
   U.Eq a m n -> wrapPreterm ([Eq'] ++ splitPreterm a frequentWords delimiterToken ++ splitPreterm m frequentWords delimiterToken ++ splitPreterm n frequentWords delimiterToken) delimiterToken
   U.Refl a m -> wrapPreterm ([Refl'] ++ splitPreterm a frequentWords delimiterToken ++ splitPreterm m frequentWords delimiterToken) delimiterToken
-  U.Idpeel m n -> wrapPreterm ([Idpeel'] ++ splitPreterm m frequentWords delimiterToken ++ splitPreterm n frequentWords delimiterToken) delimiterToken
+  U.Idpeel p e r -> wrapPreterm ([Idpeel'] ++ splitPreterm p frequentWords delimiterToken ++ splitPreterm e frequentWords delimiterToken ++ splitPreterm r frequentWords delimiterToken) delimiterToken
 
 splitPreterms:: [U.Preterm] -> [T.Text] -> DelimiterToken -> [Token]
 splitPreterms preterms frequentWords delimiterToken = concatMap (\preterm -> splitPreterm preterm frequentWords delimiterToken) preterms
