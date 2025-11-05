@@ -201,6 +201,79 @@ smoothData splittedData threshold = smoothData' splittedData [] [] []
           (validData, testData) = splitAt (length restData * 5 `div` 10) restData
       smoothData' remainingData (trainDataAcc ++ trainData) (validDataAcc ++ validData) (testDataAcc ++ testData)
 
+-- | モデルの学習を行う関数
+-- 訓練データと検証データを使用してモデルを学習します
+--
+-- 引数：
+-- * device - 使用するデバイス（CPU/GPU）
+-- * hyperParams - ハイパーパラメータ
+-- * trainData - 訓練データ
+-- * validData - 検証データ
+-- * biDirectional - 双方向LSTMを使用するかどうか
+-- * iter - エポック数
+-- * numberOfBatch - バッチサイズ
+-- * learningRate - 学習率
+--
+-- 戻り値：
+-- * (学習済みモデル, 損失ペアのリスト)のタプル
+-- * 損失ペアは(訓練損失, 検証損失)のリスト
+trainModel :: Device -> HypParams -> [([Token], QT.DTTrule)] -> [([Token], QT.DTTrule)] -> Bool -> Int -> Int -> Tensor -> IO (Params, [(Float, Float)])
+trainModel device hyperParams trainData validData biDirectional iter numberOfBatch learningRate = do
+  -- モデルの初期化
+  initModel <- sample hyperParams
+  let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
+
+  -- モデルの学習
+  ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
+    -- 訓練データのシャッフル
+    shuffledTrainData <- shuffleM trainData
+    let batchedTrainData = List.chunksOf numberOfBatch shuffledTrainData
+        batchedTrainData' = if length (last batchedTrainData) < numberOfBatch
+                          then init batchedTrainData
+                          else batchedTrainData
+
+    -- バッチごとの学習
+    ((trainedModel', _), lossPair) <- mapAccumM batchedTrainData' (model, 0 :: Int) $ \dataList (mdl, i) -> do
+      performGC
+      -- バッチ内の各データポイントに対する損失計算
+      (sumLoss', losses) <- mapAccumM dataList (0 :: Tensor) $ \dat (accumulatedLoss) -> do
+        output' <- forward device mdl dat biDirectional
+        performGC
+        let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dat) :: Int])
+            loss = nllLoss' groundTruthIndex output'
+            lossValue = (asValue loss) :: Float
+            sumLoss = accumulatedLoss + loss
+        return (sumLoss, lossValue)
+
+      -- モデルの更新
+      (newModel, _) <- update mdl optimizer sumLoss' learningRate
+      performGC
+
+      -- 検証データに対する損失計算
+      validLosses <- forM validData $ \dataPoint -> do
+        validOutput' <- forward device mdl dataPoint biDirectional
+        performGC
+        let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
+            validLossValue = (asValue (nllLoss' groundTruthIndex' validOutput')) :: Float
+        return validLossValue
+
+      -- 損失の計算と表示
+      let validLoss = sum validLosses / fromIntegral (length validLosses)
+          trainLoss = sum losses / fromIntegral (length losses)
+      print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show trainLoss ++ " validLoss " ++ show validLoss
+      return ((newModel, i + 1), (trainLoss, validLoss))
+
+    -- エポックごとの平均損失の計算と表示
+    let (trainLoss', validLoss') = unzip lossPair
+        avgTrainLoss = sum trainLoss' / fromIntegral (length trainLoss')
+        avgValidLoss = sum validLoss' / fromIntegral (length validLoss')
+    print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
+    print "----------------"
+
+    return (trainedModel', (avgTrainLoss, avgValidLoss))
+
+  return (trainedModel, lossesPair)
+
 -- | メイン関数
 -- コマンドライン引数からハイパーパラメータを取得し、
 -- モデルの学習と評価を行います
@@ -271,58 +344,8 @@ main = do
   print $ "iter " ++ show iter
   print $ "delimiterToken " ++ show delimiterToken
 
-  -- モデルの初期化
-  initModel <- sample hyperParams
-  let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
-
   -- モデルの学習
-  ((trainedModel), lossesPair) <- mapAccumM [1..iter] (initModel) $ \epoc (model) -> do
-    -- 訓練データのシャッフル
-    shuffledTrainData <- shuffleM trainData
-    let batchedTrainData = List.chunksOf numberOfBatch shuffledTrainData
-        batchedTrainData' = if length (last batchedTrainData) < numberOfBatch
-                          then init batchedTrainData
-                          else batchedTrainData
-
-    -- バッチごとの学習
-    ((trainedModel', _), lossPair) <- mapAccumM batchedTrainData' (model, 0 :: Int) $ \dataList (mdl, i) -> do
-      performGC
-      -- バッチ内の各データポイントに対する損失計算
-      (sumLoss', losses) <- mapAccumM dataList (0 :: Tensor) $ \dat (accumulatedLoss) -> do
-        output' <- forward device mdl dat biDirectional
-        performGC
-        let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dat) :: Int])
-            loss = nllLoss' groundTruthIndex output'
-            lossValue = (asValue loss) :: Float
-            sumLoss = accumulatedLoss + loss
-        return (sumLoss, lossValue)
-
-      -- モデルの更新
-      (newModel, _) <- update mdl optimizer sumLoss' learningRate
-      performGC
-
-      -- 検証データに対する損失計算
-      validLosses <- forM validData $ \dataPoint -> do
-        validOutput' <- forward device mdl dataPoint biDirectional
-        performGC
-        let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
-            validLossValue = (asValue (nllLoss' groundTruthIndex' validOutput')) :: Float
-        return validLossValue
-
-      -- 損失の計算と表示
-      let validLoss = sum validLosses / fromIntegral (length validLosses)
-          trainLoss = sum losses / fromIntegral (length losses)
-      print $ "epoch " ++ show epoc ++ " i " ++ show i ++ " trainingLoss " ++ show trainLoss ++ " validLoss " ++ show validLoss
-      return ((newModel, i + 1), (trainLoss, validLoss))
-
-    -- エポックごとの平均損失の計算と表示
-    let (trainLoss', validLoss') = unzip lossPair
-        avgTrainLoss = sum trainLoss' / fromIntegral (length trainLoss')
-        avgValidLoss = sum validLoss' / fromIntegral (length validLoss')
-    print $ "epoch " ++ show epoc ++ " avgTrainLoss " ++ show avgTrainLoss ++ " avgValidLoss " ++ show avgValidLoss
-    print "----------------"
-
-    return (trainedModel', (avgTrainLoss, avgValidLoss))
+  (trainedModel, lossesPair) <- trainModel device hyperParams trainData validData biDirectional iter numberOfBatch learningRate
 
   -- 現在時刻の取得（フォルダ名に使用）
   currentTime <- getZonedTime
