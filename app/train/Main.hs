@@ -8,6 +8,7 @@ import System.Random.Shuffle (shuffleM)
 import System.Directory (listDirectory)
 import System.FilePath ((</>))
 import qualified Data.Text.IO as T    --text
+import qualified Data.Text.Lazy as TL --text
 import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
@@ -20,13 +21,14 @@ import           System.Environment (getArgs)
 import System.Mem (performGC)
 import System.Directory (createDirectoryIfMissing)
 import qualified DTS.QueryTypes as QT
+import qualified DTS.DTTdeBruijn as U
 
 --hasktorch関連のインポート
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
 import Torch.Device       (Device(..),DeviceType(..))
 import Torch.Functional   (Dim(..),nllLoss',argmax,KeepDim(..), embedding', logSoftmax)
 import Torch.NN           (Parameter,Parameterized,Randomizable,sample, flattenParameters)
-import Torch.Autograd     (IndependentTensor(..),makeIndependent)
+import Torch.Autograd     (IndependentTensor(..),makeIndependent,toDependent)
 import Torch.Optim        (mkAdam)
 import Torch.Train        (update,saveParams,loadParams)
 import Torch.Control      (mapAccumM)
@@ -97,15 +99,15 @@ instance Randomizable HypParams Params where
 -- 引数：
 -- * device - 使用するデバイス（CPU/GPU）
 -- * params - モデルのパラメータ
--- * dataset - 入力データ（トークン列と規則）
+-- * tokens - 入力データ（トークン列）
 -- * bi_directional - 双方向LSTMを使用するかどうか
 --
 -- 戻り値：
 -- * 各規則の予測確率（対数ソフトマックス適用済み）
-forward :: Device -> Params -> ([Token], QT.DTTrule) -> Bool -> IO Tensor
-forward device Params{..} dataset bi_directional = do
+forward :: Device -> Params -> [Token] -> Bool -> IO Tensor
+forward device Params{..} tokens bi_directional = do
   -- トークンをインデックスに変換し、テンソルに変換
-  let inputIndices = map fromEnum $ fst dataset
+  let inputIndices = map fromEnum tokens
       idxs = toDevice device $ asTensor (inputIndices :: [Int])
       -- 埋め込み層を適用
       input = embedding' (toDependent w_emb) idxs
@@ -142,6 +144,37 @@ extractLastOutput tensor bi_directional = do
         [1, _] -> return tensor
         [_, _] -> return $ sliceDim 0 (shapeInput !! 0 - 1) (shapeInput !! 0) 1 tensor
         _      -> error $ "Unexpected shape: " ++ show shapeInput
+
+-- | Judgmentから規則を予測する関数
+-- forward関数とsplitJudgment関数を活用して、Judgmentから規則を予測します
+--
+-- 引数：
+-- * device - 使用するデバイス（CPU/GPU）
+-- * params - モデルのパラメータ
+-- * judgment - 予測対象のJudgment
+-- * bi_directional - 双方向LSTMを使用するかどうか
+-- * frequentWords - 頻出語のリスト（splitJudgmentに必要）
+-- * delimiterToken - 区切り用トークンの種類（splitJudgmentに必要）
+--
+-- 戻り値：
+-- * 予測された規則のリスト（確率の高い順にソート済み）
+predictRule :: Device -> Params -> U.Judgment -> Bool -> [TL.Text] -> DelimiterToken -> IO [QT.DTTrule]
+predictRule device params judgment bi_directional frequentWords delimiterToken = do
+  -- Judgmentをトークン列に変換
+  let tokens = splitJudgment judgment frequentWords delimiterToken
+  -- forward関数を呼び出して予測確率テンソルを取得
+  output' <- forward device params tokens bi_directional
+  -- テンソルから値を取得（形状は[1, num_rules]）
+  let probabilities :: [[Float]]
+      probabilities = asValue output'
+      -- 最初のバッチ（バッチサイズ1なので最初の要素）を取得
+      probs = head probabilities
+      -- インデックスと確率をペアにして、確率の降順でソート
+      indexedProbs = zip [0..] probs
+      sortedIndexedProbs = List.sortOn (Down . snd) indexedProbs
+      -- インデックスを規則に変換
+      predictedRules = map (\(idx, _) -> toEnum idx :: QT.DTTrule) sortedIndexedProbs
+  return predictedRules
 
 -- | 規則の出現回数をカウントする関数
 -- 各規則の出現頻度を計算し、頻度の降順でソートして返します
@@ -237,7 +270,7 @@ trainModel device hyperParams trainData validData biDirectional iter numberOfBat
       performGC
       -- バッチ内の各データポイントに対する損失計算
       (sumLoss', losses) <- mapAccumM dataList (0 :: Tensor) $ \dat (accumulatedLoss) -> do
-        output' <- forward device mdl dat biDirectional
+        output' <- forward device mdl (fst dat) biDirectional
         performGC
         let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dat) :: Int])
             loss = nllLoss' groundTruthIndex output'
@@ -251,7 +284,7 @@ trainModel device hyperParams trainData validData biDirectional iter numberOfBat
 
       -- 検証データに対する損失計算
       validLosses <- forM validData $ \dataPoint -> do
-        validOutput' <- forward device mdl dataPoint biDirectional
+        validOutput' <- forward device mdl (fst dataPoint) biDirectional
         performGC
         let groundTruthIndex' = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
             validLossValue = (asValue (nllLoss' groundTruthIndex' validOutput')) :: Float
@@ -369,7 +402,7 @@ main = do
 
   -- テストデータに対する予測と評価
   pairs <- forM testData $ \dataPoint -> do
-    output' <- forward device trainedModel dataPoint biDirectional
+    output' <- forward device trainedModel (fst dataPoint) biDirectional
     let groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
         predictedClassIndex = argmax (Dim 1) KeepDim output'
         isCorrect = groundTruthIndex == predictedClassIndex
