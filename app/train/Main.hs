@@ -13,6 +13,7 @@ import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
 import qualified Data.Text.Encoding as E
+import Data.Store (encode)
 import Data.Ord (Down(..))
 import qualified Data.Map.Strict as Map
 import qualified Data.List as List
@@ -246,12 +247,13 @@ smoothData splittedData threshold = smoothData' splittedData [] [] []
 -- * iter - エポック数
 -- * numberOfBatch - バッチサイズ
 -- * learningRate - 学習率
+-- * frequentWords - 頻出語のリスト（予測時にJudgmentをトークンに変換するために必要）
 --
 -- 戻り値：
--- * (学習済みモデル, 損失ペアのリスト)のタプル
+-- * (学習済みモデル, 損失ペアのリスト, 頻出語のリスト)のタプル
 -- * 損失ペアは(訓練損失, 検証損失)のリスト
-trainModel :: Device -> HypParams -> [([Token], QT.DTTrule)] -> [([Token], QT.DTTrule)] -> Bool -> Int -> Int -> Tensor -> IO (Params, [(Float, Float)])
-trainModel device hyperParams trainData validData biDirectional iter numberOfBatch learningRate = do
+trainModel :: Device -> HypParams -> [([Token], QT.DTTrule)] -> [([Token], QT.DTTrule)] -> Bool -> Int -> Int -> Tensor -> [TL.Text] -> IO (Params, [(Float, Float)], [TL.Text])
+trainModel device hyperParams trainData validData biDirectional iter numberOfBatch learningRate frequentWords = do
   -- モデルの初期化
   initModel <- sample hyperParams
   let optimizer = mkAdam 0 0.9 0.999 (flattenParameters initModel)
@@ -305,7 +307,7 @@ trainModel device hyperParams trainData validData biDirectional iter numberOfBat
 
     return (trainedModel', (avgTrainLoss, avgValidLoss))
 
-  return (trainedModel, lossesPair)
+  return (trainedModel, lossesPair, frequentWords)
 
 -- | メイン関数
 -- コマンドライン引数からハイパーパラメータを取得し、
@@ -357,7 +359,7 @@ main = do
   print $ "countedRules (training data) " ++ show countedTrainRules
 
   -- ハイパーパラメータの設定
-  let device = Device CUDA 0                 -- 使用するデバイス（CPU/GPU）
+  let device = Device CPU 0                 -- 使用するデバイス（CPU/GPU）
       biDirectional = bi                    -- 双方向LSTMを使用するかどうか
       embDim = emb                          -- 埋め込み層の次元数
       numOfLayers = l                       -- LSTMの層数
@@ -378,7 +380,7 @@ main = do
   print $ "delimiterToken " ++ show delimiterToken
 
   -- モデルの学習
-  (trainedModel, lossesPair) <- trainModel device hyperParams trainData validData biDirectional iter numberOfBatch learningRate
+  (trainedModel, lossesPair, frequentWords') <- trainModel device hyperParams trainData validData biDirectional iter numberOfBatch learningRate frequentWords
 
   -- 現在時刻の取得（フォルダ名に使用）
   currentTime <- getZonedTime
@@ -390,14 +392,17 @@ main = do
   createDirectoryIfMissing True newFolderPath
 
   let modelFileName = newFolderPath ++ "/seq-class" ++ ".model"
+      frequentWordsFileName = newFolderPath ++ "/frequentWords" ++ ".bin"
       graphFileName =  newFolderPath ++ "/graph-seq-class"  ++ ".png"
       confusionMatrixFileName =  newFolderPath ++ "/confusion-matrix" ++ ".png"
       classificationReportFileName =  newFolderPath ++ "/classification-report" ++ ".txt"
       learningCurveTitle = "type: " ++ show delimiterToken ++ " bi: " ++ show biDirectional ++ " s: " ++ show numberOfBatch ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
 
-  -- モデルの保存と学習曲線の描画
+  -- モデルとfrequentWordsの保存と学習曲線の描画
   saveParams trainedModel modelFileName
+  B.writeFile frequentWordsFileName (encode frequentWords')
+
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
   -- テストデータに対する予測と評価
