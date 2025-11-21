@@ -75,6 +75,16 @@ executables:
     dependencies:
     - neuralWani
 
+  builder-exe:
+    main:                Main.hs
+    source-dirs:         app/builder
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - neuralWani
+
 tests:
   test:
     main:                Main.hs
