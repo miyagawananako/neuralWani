@@ -225,21 +225,12 @@ runProverWithTime :: QT.Prover -> DTT.Signature -> [DTT.Preterm] -> DTT.Preterm
 runProverWithTime prover sig ctx t = do
   startTime <- getCurrentTime
   
-  -- 1. まず conjecture を証明しようとする
   rteResult <- NLI.runRTEWithPreterms prover sig ctx t (-1)
-  let posLabel = NLI.rtePretermLabel rteResult
-  
-  -- 2. conjecture が証明できなかったら ¬conjecture を試す
-  result <- case posLabel of
-    JSeM.Yes -> return TI.YES  -- conjecture が証明できた → YES
-    _ -> do
-      -- ¬conjecture を証明しようとする
-      let negTarget = DTT.Not t
-      negResult <- NLI.runRTEWithPreterms prover sig ctx negTarget (-1)
-      let negLabel = NLI.rtePretermLabel negResult
-      case negLabel of
-        JSeM.Yes -> return TI.NO  -- ¬conjecture が証明できた → NO
-        _        -> return TI.UNKNOWN  -- どちらも証明できなかった → UNKNOWN
+  let label = NLI.rtePretermLabel rteResult
+  let result = case label of
+        JSeM.Yes -> TI.YES
+        JSeM.No  -> TI.NO
+        _        -> TI.UNKNOWN
   
   endTime <- getCurrentTime
   let elapsedTime = diffUTCTime endTime startTime
