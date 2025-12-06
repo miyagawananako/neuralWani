@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.38.2.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -25,8 +25,16 @@ source-repository head
 
 library
   exposed-modules:
-      SplitJudgment
       Forward
+      SplitJudgment
+      TPTP.Convert
+      TPTP.FormulaLexer
+      TPTP.FormulaParser
+      TPTP.FormulaSyntax
+      TPTP.Lexer
+      TPTP.Parser
+      TPTP.Syntax
+      TPTPInfo
   other-modules:
       Paths_neuralWani
   autogen-modules:
@@ -34,17 +42,24 @@ library
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-tools:
+      alex
+    , happy
   build-depends:
-      base >=4.7 && <5
+      array >=0.5.3.0
+    , base >=4.7 && <5
     , bytestring
     , cereal-text
     , containers
+    , data-default
     , directory
     , filepath
     , hasktorch >=0.2
     , hasktorch-tools
+    , jsem >=1.1
     , lightblue >=0.3
     , list-t
+    , mtl >=2.2.2
     , nlp-tools
     , parserModules
     , random
@@ -66,16 +81,56 @@ executable builder-exe
       app/builder
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      array >=0.5.3.0
+    , base >=4.7 && <5
     , bytestring
     , cereal-text
     , containers
+    , data-default
     , directory
     , filepath
     , hasktorch >=0.2
     , hasktorch-tools
+    , jsem >=1.1
     , lightblue >=0.3
     , list-t
+    , mtl >=2.2.2
+    , neuralWani
+    , nlp-tools
+    , parserModules
+    , random
+    , random-shuffle
+    , split
+    , store
+    , text
+    , time
+    , waniTEST
+  default-language: Haskell2010
+
+executable evaluate-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_neuralWani
+  autogen-modules:
+      Paths_neuralWani
+  hs-source-dirs:
+      app/evaluate
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      array >=0.5.3.0
+    , base >=4.7 && <5
+    , bytestring
+    , cereal-text
+    , containers
+    , data-default
+    , directory
+    , filepath
+    , hasktorch >=0.2
+    , hasktorch-tools
+    , jsem >=1.1
+    , lightblue >=0.3
+    , list-t
+    , mtl >=2.2.2
     , neuralWani
     , nlp-tools
     , parserModules
@@ -98,16 +153,20 @@ executable preprocess-exe
       app/preprocess
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      array >=0.5.3.0
+    , base >=4.7 && <5
     , bytestring
     , cereal-text
     , containers
+    , data-default
     , directory
     , filepath
     , hasktorch >=0.2
     , hasktorch-tools
+    , jsem >=1.1
     , lightblue >=0.3
     , list-t
+    , mtl >=2.2.2
     , neuralWani
     , nlp-tools
     , parserModules
@@ -130,16 +189,20 @@ executable train-exe
       app/train
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      array >=0.5.3.0
+    , base >=4.7 && <5
     , bytestring
     , cereal-text
     , containers
+    , data-default
     , directory
     , filepath
     , hasktorch >=0.2
     , hasktorch-tools
+    , jsem >=1.1
     , lightblue >=0.3
     , list-t
+    , mtl >=2.2.2
     , neuralWani
     , nlp-tools
     , parserModules
@@ -163,16 +226,20 @@ test-suite test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      array >=0.5.3.0
+    , base >=4.7 && <5
     , bytestring
     , cereal-text
     , containers
+    , data-default
     , directory
     , filepath
     , hasktorch >=0.2
     , hasktorch-tools
+    , jsem >=1.1
     , lightblue >=0.3
     , list-t
+    , mtl >=2.2.2
     , neuralWani
     , nlp-tools
     , parserModules
