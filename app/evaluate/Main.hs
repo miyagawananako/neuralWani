@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import qualified DTS.NaturalLanguageInference as NLI
 import qualified DTS.QueryTypes as QT
 import qualified Parser.ChartParser as CP
 import qualified Parser.PartialParsing as CP
@@ -15,11 +14,19 @@ import qualified JSeM
 import Data.Time.Clock (getCurrentTime, diffUTCTime, NominalDiffTime)
 import Text.Printf (printf)
 import System.Directory (listDirectory, createDirectoryIfMissing)
-import System.FilePath ((</>), takeFileName)
+import System.FilePath ((</>), takeFileName, takeBaseName)
 import Data.List (isInfixOf, sort, intercalate)
 import Data.Time.Format (formatTime, defaultTimeLocale)
 import Control.Exception (try, SomeException)
 import Text.Read (readMaybe)
+
+-- 証明木関連のインポート
+import qualified DTS.Prover.Wani.Prove as Prove   -- prove' 関数
+import qualified Interface.Tree as I              -- Tree データ型
+import qualified Interface.Text as IText          -- toText
+import qualified Interface.TeX as ITeX            -- toTeX
+import qualified Interface.HTML as IHTML          -- toMathML, HTML出力
+import qualified ListT                            -- ListT モナド
 
 -- | 評価結果を保持するデータ型
 data EvalResult = EvalResult
@@ -39,9 +46,13 @@ data SkippedFile = SkippedFile
   , sfReason   :: T.Text
   } deriving (Show)
 
--- | data/SYN/ ディレクトリのパス
-synDir :: FilePath
-synDir = "data/SYN"
+-- | data/TPTP/ ディレクトリのパス
+tptpDir :: FilePath
+tptpDir = "data/TPTP"
+
+-- | 対象のサブディレクトリ
+targetSubDirs :: [FilePath]
+targetSubDirs = ["SYN"]
 
 -- | Proverの設定パラメータ（デフォルト値）
 defaultMaxDepth :: Int
@@ -67,43 +78,49 @@ main = do
           Nothing -> error $ "Invalid maxTime: " ++ timeStr ++ "\nUsage: program [maxTime]"
         _         -> error "Usage: program [maxTime]"
   
+  -- 実行開始時刻を取得（レポートと証明木の対応に使用）
+  now <- getCurrentTime
+  let timestamp = formatTime defaultTimeLocale "%Y-%m-%d_%H-%M-%S" now
+      configStr = "D" ++ show (cfgMaxDepth config) ++ "T" ++ show (cfgMaxTime config)
+      sessionId = configStr ++ "_" ++ timestamp
+  
   putStrLn $ "=== Prover Configuration ==="
   putStrLn $ "maxDepth: " ++ show (cfgMaxDepth config)
   putStrLn $ "maxTime:  " ++ show (cfgMaxTime config)
+  putStrLn $ "Session:  " ++ sessionId
   putStrLn ""
   
   -- ========================================
   -- 単一ファイルを指定する場合はこちらをコメント解除
   -- ========================================
-  -- let singleFile = "SYN000+1.p"
-  -- putStrLn $ "Processing single file: " ++ singleFile
-  -- result <- processOneFile config singleFile
+  -- let singleFile = ("SYN", "SYN000+1.p")
+  -- putStrLn $ "Processing single file: " ++ show singleFile
+  -- result <- processOneFile config sessionId singleFile
   -- case result of
-  --   Left skipped -> putStrLn $ "Skipped: " ++ sfReason skipped
-  --   Right eval   -> writeTexReport config [eval] []
+  --   Left skipped -> putStrLn $ "Skipped: " ++ T.unpack (sfReason skipped)
+  --   Right eval   -> writeTexReport config sessionId [eval] []
   
   -- ========================================
   -- 全FOFファイルを処理する場合はこちら（デフォルト）
   -- ========================================
-  -- data/SYN/ ディレクトリ内のファイルを取得
-  allFiles <- listDirectory synDir
+  -- data/TPTP/ 配下のサブディレクトリからファイルを取得
+  -- fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
   
-  -- ファイル名に "+" が含まれているものだけをフィルタリング（FOF形式）
-  let fofFiles = sort $ filter ('+' `elem`) allFiles
-  -- let fofFiles = ["SYN950+1.p", "SYN952+1.p", "SYN958+1.p"]
+  -- let fofFiles = sort fofFilesWithSubDir
+  let fofFiles = [("SYN", "SYN950+1.p"), ("SYN", "SYN952+1.p"), ("SYN", "SYN958+1.p")]
   
   -- Found 376 FOF files (with '+' in filename)！！
   putStrLn $ "Found " ++ show (length fofFiles) ++ " FOF files (with '+' in filename)"
   putStrLn ""
   
   -- 各ファイルを処理して結果を集計
-  results <- mapM (processOneFile config) fofFiles
+  results <- mapM (processOneFile config sessionId) fofFiles
   
   -- 成功した結果とスキップされたファイルを分離
   let (skipped, evaluated) = partitionResults results
   
   -- TeX形式でレポートを出力
-  writeTexReport config evaluated skipped
+  writeTexReport config sessionId evaluated skipped
   
   -- サマリーを表示
   printSummary evaluated skipped
@@ -115,11 +132,20 @@ partitionResults = foldr f ([], [])
     f (Left s)  (ss, es) = (s:ss, es)
     f (Right e) (ss, es) = (ss, e:es)
 
+-- | サブディレクトリからFOFファイル（"+"を含む）を取得
+getFilesFromSubDir :: FilePath -> IO [(FilePath, FilePath)]
+getFilesFromSubDir subDir = do
+  let dirPath = tptpDir </> subDir
+  allFiles <- listDirectory dirPath
+  -- ファイル名に "+" が含まれているものだけをフィルタリング（FOF形式）
+  let fofFiles = filter ('+' `elem`) allFiles
+  return $ map (\f -> (subDir, f)) fofFiles
+
 -- | 1つのファイルを処理する
-processOneFile :: ProverConfig -> FilePath -> IO (Either SkippedFile EvalResult)
-processOneFile config filename = do
-  let filepath = synDir </> filename
-      filenameText = T.pack filename
+processOneFile :: ProverConfig -> String -> (FilePath, FilePath) -> IO (Either SkippedFile EvalResult)
+processOneFile config sessionId (subDir, filename) = do
+  let filepath = tptpDir </> subDir </> filename
+      filenameText = T.pack (subDir </> filename)
   info <- processFile filepath
   
   -- TPTPファイルから取得したデータを変数に格納
@@ -148,7 +174,7 @@ processOneFile config filename = do
   
   if not (null errors)
     then do
-      putStrLn $ "=== File: " ++ filename ++ " ==="
+      putStrLn $ "=== File: " ++ subDir </> filename ++ " ==="
       putStrLn $ "Error: " ++ intercalate ", " errors
       return $ Left SkippedFile
         { sfFilename = filenameText
@@ -159,7 +185,7 @@ processOneFile config filename = do
           Just st   = status
           Just lang = language
       -- 全てのデータが正しく取得できた
-      putStrLn $ "=== File: " ++ filename ++ " ==="
+      putStrLn $ "=== File: " ++ subDir </> filename ++ " ==="
       putStrLn $ "  context:   " ++ show (length context) ++ " axioms"
       putStrLn $ "  target:    OK"
       putStrLn $ "  signature: " ++ show (length signature) ++ " entries"
@@ -167,38 +193,71 @@ processOneFile config filename = do
       putStrLn $ "  language:  " ++ show lang
       
       -- Proverの設定（コマンドライン引数から取得した値を使用）
-      let normalProver = NLI.getProver NLI.Wani $ QT.defaultProofSearchSetting {
+      let normalSetting = QT.defaultProofSearchSetting {
                 QT.maxDepth = Just (cfgMaxDepth config),
                 QT.maxTime = Just (cfgMaxTime config)
                 }
-      -- getPrioritizedRules <- neuralWaniBuilder  -- srcから引っ張ってくる
-      let neuralWaniProver = NLI.getProver NLI.Wani $ QT.defaultProofSearchSetting {
+      -- NeuralWani用の設定（将来的にニューラルネットワークを有効化）
+      let neuralSetting = QT.defaultProofSearchSetting {
                 QT.maxDepth = Just (cfgMaxDepth config),
                 QT.maxTime = Just (cfgMaxTime config)
-                -- QT.neuralWani = Just getPrioritizedRules
+                -- QT.neuralWani = Just getPrioritizedRules  -- 将来の実装用
                 }
       
       -- 期待される結果（StatusからResultに変換）
       let expectedResult :: Maybe TI.Result
           expectedResult = TI.statusToResult <$> TI.status info
       
-      putStrLn ""
-      putStrLn "=========================================="
-      putStrLn "=== Normal Prover ==="
-      (normalResult, normalTime) <- runProverWithTime normalProver signature context t
-      printProverResult "Normal" normalResult normalTime expectedResult
+      -- 証明木出力用のディレクトリとベース名
+      let baseName = takeBaseName filename
+          treeBaseDir = "evaluateResult" </> ("proofTrees_" ++ sessionId)
       
+      -- ========================================
+      -- Normal Prover での証明探索
+      -- ========================================
+      putStrLn ""
+      putStrLn "=== Normal Prover ==="
+      (normalTree, normalTime) <- runProveWithTree normalSetting signature context t
+      let normalResult = proofTreeToResult normalTree
+      putStrLn $ "  Result: " ++ show normalResult
+      putStrLn $ "  Time:   " ++ T.unpack (formatTimeNominal normalTime)
+      
+      -- 証明木をファイルに出力（normal/ サブディレクトリに保存）
+      let normalTreeDir = treeBaseDir </> "normal"
+      writeProofTrees normalTreeDir baseName normalTree
+      
+      -- 期待値との比較
+      let normalMatch = maybe False (== normalResult) expectedResult
+      printMatchResult normalMatch expectedResult normalResult
+      
+      -- ========================================
+      -- NeuralWani Prover での証明探索
+      -- ========================================
       putStrLn ""
       putStrLn "=== NeuralWani Prover ==="
-      (neuralResult, neuralTime) <- runProverWithTime neuralWaniProver signature context t
-      printProverResult "NeuralWani" neuralResult neuralTime expectedResult
+      (neuralTree, neuralTime) <- runProveWithTree neuralSetting signature context t
+      let neuralResult = proofTreeToResult neuralTree
+      putStrLn $ "  Result: " ++ show neuralResult
+      putStrLn $ "  Time:   " ++ T.unpack (formatTimeNominal neuralTime)
       
+      -- 証明木をファイルに出力（neural/ サブディレクトリに保存）
+      let neuralTreeDir = treeBaseDir </> "neural"
+      writeProofTrees neuralTreeDir baseName neuralTree
+      
+      -- 期待値との比較
+      let neuralMatch = maybe False (== neuralResult) expectedResult
+      printMatchResult neuralMatch expectedResult neuralResult
+      
+      -- ========================================
       -- 比較結果
+      -- ========================================
       putStrLn ""
       putStrLn "=== Comparison ==="
       putStrLn $ "Normal time:     " ++ T.unpack (formatTimeNominal normalTime)
       putStrLn $ "NeuralWani time: " ++ T.unpack (formatTimeNominal neuralTime)
-      let speedup = realToFrac normalTime / realToFrac neuralTime :: Double
+      let speedup = if neuralTime > 0 
+                    then realToFrac normalTime / realToFrac neuralTime :: Double
+                    else 0
       printf "Speedup: %.2fx\n" speedup
       putStrLn $ "Results match: " ++ show (normalResult == neuralResult)
       
@@ -206,9 +265,6 @@ processOneFile config filename = do
       putStrLn "=========================================="
       putStrLn ""
       
-      -- 結果を返す
-      let normalMatch = maybe False (== normalResult) expectedResult
-          neuralMatch = maybe False (== neuralResult) expectedResult
       return $ Right EvalResult
         { erFilename     = filenameText
         , erExpected     = expectedResult
@@ -220,34 +276,15 @@ processOneFile config filename = do
         , erNeuralMatch  = neuralMatch
         }
 
--- | Proverを実行して結果と実行時間を返す
-runProverWithTime :: QT.Prover -> DTT.Signature -> [DTT.Preterm] -> DTT.Preterm 
-                  -> IO (TI.Result, NominalDiffTime)
-runProverWithTime prover sig ctx t = do
-  startTime <- getCurrentTime
-  
-  rteResult <- NLI.runRTEWithPreterms prover sig ctx t (-1)
-  let label = NLI.rtePretermLabel rteResult
-  let result = case label of
-        JSeM.Yes -> TI.YES
-        JSeM.No  -> TI.NO
-        _        -> TI.UNKNOWN
-  
-  endTime <- getCurrentTime
-  let elapsedTime = diffUTCTime endTime startTime
-  return (result, elapsedTime)
-
--- | Proverの結果を出力する
-printProverResult :: String -> TI.Result -> NominalDiffTime -> Maybe TI.Result -> IO ()
-printProverResult name result time expectedResult = do
-  putStrLn $ "Result: " ++ show result
-  putStrLn $ "Time:   " ++ T.unpack (formatTimeNominal time)
+-- | 期待値との比較結果を表示する
+printMatchResult :: Bool -> Maybe TI.Result -> TI.Result -> IO ()
+printMatchResult match expectedResult actualResult = 
   case expectedResult of
     Just expected ->
-      if result == expected
-        then putStrLn $ "✓ " ++ name ++ " MATCH"
-        else putStrLn $ "✗ " ++ name ++ " MISMATCH: got " ++ show result ++ ", expected " ++ show expected
-    Nothing -> putStrLn "? Cannot compare (no expected status)"
+      if match
+        then putStrLn $ "  ✓ MATCH"
+        else putStrLn $ "  ✗ MISMATCH: got " ++ show actualResult ++ ", expected " ++ show expected
+    Nothing -> putStrLn "  ? Cannot compare (no expected status)"
 
 -- | 時間をフォーマットする
 formatTimeNominal :: NominalDiffTime -> T.Text
@@ -287,28 +324,26 @@ printSummary results skipped = do
   putStrLn $ "NeuralWani: " ++ T.unpack (formatTimeNominal avgNeuralTime)
 
 -- | TeX形式でレポートを出力する
-writeTexReport :: ProverConfig -> [EvalResult] -> [SkippedFile] -> IO ()
-writeTexReport config results skipped = do
+writeTexReport :: ProverConfig -> String -> [EvalResult] -> [SkippedFile] -> IO ()
+writeTexReport config sessionId results skipped = do
   -- 出力ディレクトリを作成
   createDirectoryIfMissing True "evaluateResult"
   
-  -- 現在時刻を取得してファイル名に使用
-  now <- getCurrentTime
-  let timestamp = formatTime defaultTimeLocale "%Y-%m-%d_%H-%M-%S" now
-      -- ファイル名に maxDepth と maxTime を含める
-      -- 形式: report_D{depth}T{time}_{timestamp}.tex
-      configStr = "D" ++ show (cfgMaxDepth config) ++ "T" ++ show (cfgMaxTime config)
-      texFilename = "evaluateResult" </> ("report_" ++ configStr ++ "_" ++ timestamp ++ ".tex")
+  -- sessionIdを使用してファイル名を決定（証明木ディレクトリと対応）
+  let texFilename = "evaluateResult" </> ("report_" ++ sessionId ++ ".tex")
+      proofTreeDirName = "proofTrees_" ++ sessionId
   
   -- TeXファイルを書き込み
-  T.writeFile texFilename $ generateTexContent config results skipped
+  T.writeFile texFilename $ generateTexContent config sessionId results skipped
   
   putStrLn ""
   putStrLn $ "TeX report written to: " ++ texFilename
+  putStrLn $ "Proof trees saved to:  evaluateResult/" ++ proofTreeDirName ++ "/normal/"
+  putStrLn $ "                       evaluateResult/" ++ proofTreeDirName ++ "/neural/"
 
 -- | TeXコンテンツを生成する
-generateTexContent :: ProverConfig -> [EvalResult] -> [SkippedFile] -> T.Text
-generateTexContent config results skipped = T.unlines
+generateTexContent :: ProverConfig -> String -> [EvalResult] -> [SkippedFile] -> T.Text
+generateTexContent config sessionId results skipped = T.unlines
   [ "\\documentclass[a4paper,10pt]{article}"
   , "\\usepackage[utf8]{inputenc}"
   , "\\usepackage{booktabs}"
@@ -332,6 +367,9 @@ generateTexContent config results skipped = T.unlines
   , "\\begin{itemize}"
   , "\\item maxDepth: " <> T.pack (show (cfgMaxDepth config))
   , "\\item maxTime: " <> T.pack (show (cfgMaxTime config))
+  , "\\item Session ID: \\texttt{" <> escapeTeX (T.pack sessionId) <> "}"
+  , "\\item Proof Trees (Normal): \\texttt{evaluateResult/proofTrees\\_" <> escapeTeX (T.pack sessionId) <> "/normal/}"
+  , "\\item Proof Trees (NeuralWani): \\texttt{evaluateResult/proofTrees\\_" <> escapeTeX (T.pack sessionId) <> "/neural/}"
   , "\\end{itemize}"
   , ""
   , "\\section{Summary}"
@@ -500,3 +538,93 @@ escapeTeX = T.concatMap escapeChar
     escapeChar '^' = "\\^{}"
     escapeChar '~' = "\\~{}"
     escapeChar c   = T.singleton c
+
+-- ============================================
+-- 証明木出力関連の関数
+-- ============================================
+
+-- | prove' を使って証明探索を実行し、証明木を取得する
+runProveWithTree :: QT.ProofSearchSetting -> DTT.Signature -> [DTT.Preterm] -> DTT.Preterm
+                 -> IO (Maybe (I.Tree QT.DTTrule DTT.Judgment), NominalDiffTime)
+runProveWithTree setting sig ctx targetType = do
+  startTime <- getCurrentTime
+  
+  -- ProofSearchQueryを構築
+  let query = DTT.ProofSearchQuery sig ctx targetType
+  
+  -- prove' を使用して証明木を取得
+  let prover = Prove.prove' setting
+  trees <- ListT.toList (prover query)
+  
+  endTime <- getCurrentTime
+  let elapsedTime = diffUTCTime endTime startTime
+  
+  -- 最初の証明木を返す（存在すれば）
+  case trees of
+    (tree:_) -> return (Just tree, elapsedTime)
+    []       -> return (Nothing, elapsedTime)
+
+-- | 証明木の結果をTI.Resultに変換
+proofTreeToResult :: Maybe (I.Tree QT.DTTrule DTT.Judgment) -> TI.Result
+proofTreeToResult (Just _) = TI.YES
+proofTreeToResult Nothing  = TI.UNKNOWN
+
+-- | 証明木をテキストファイルに出力
+writeProofTreeText :: FilePath -> I.Tree QT.DTTrule DTT.Judgment -> IO ()
+writeProofTreeText filepath tree = do
+  let content = IText.toText tree
+  T.writeFile filepath content
+
+-- | 証明木をTeX形式でファイルに出力
+writeProofTreeTeX :: FilePath -> I.Tree QT.DTTrule DTT.Judgment -> IO ()
+writeProofTreeTeX filepath tree = do
+  let treeTeX = ITeX.toTeX tree
+      content = T.unlines
+        [ "\\documentclass[a4paper,10pt]{article}"
+        , "\\usepackage[utf8]{inputenc}"
+        , "\\usepackage{amsmath}"
+        , "\\usepackage{amssymb}"
+        , "\\usepackage{bussproofs}"
+        , "\\usepackage{geometry}"
+        , "\\geometry{margin=1cm}"
+        , ""
+        , "% Natural Deduction マクロ"
+        , "\\newcommand{\\nd}[3]{\\AxiomC{#3}\\RightLabel{\\scriptsize #1}\\UnaryInfC{#2}}"
+        , ""
+        , "\\begin{document}"
+        , ""
+        , "\\section*{Proof Tree}"
+        , ""
+        , "\\begin{prooftree}"
+        , treeTeX
+        , "\\end{prooftree}"
+        , ""
+        , "\\end{document}"
+        ]
+  T.writeFile filepath content
+
+-- | 証明木をHTML（MathML）形式でファイルに出力
+writeProofTreeHTML :: FilePath -> I.Tree QT.DTTrule DTT.Judgment -> IO ()
+writeProofTreeHTML filepath tree = do
+  content <- Prove.display tree
+  T.writeFile filepath content
+
+-- | 証明木を複数の形式で出力
+writeProofTrees :: FilePath -> String -> Maybe (I.Tree QT.DTTrule DTT.Judgment) -> IO ()
+writeProofTrees baseDir baseName maybeTree = do
+  createDirectoryIfMissing True baseDir
+  case maybeTree of
+    Nothing -> do
+      -- 証明が見つからなかった場合
+      let noProofFile = baseDir </> (baseName ++ "_no_proof.txt")
+      writeFile noProofFile "No proof found."
+    Just tree -> do
+      -- テキスト形式
+      let textFile = baseDir </> (baseName ++ ".txt")
+      writeProofTreeText textFile tree
+      putStrLn $ "  Proof tree (text): " ++ textFile
+      
+      -- HTML形式（MathML）
+      let htmlFile = baseDir </> (baseName ++ ".html")
+      writeProofTreeHTML htmlFile tree
+      putStrLn $ "  Proof tree (HTML): " ++ htmlFile
