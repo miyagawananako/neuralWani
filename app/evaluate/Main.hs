@@ -70,14 +70,19 @@ data ProverConfig = ProverConfig
 
 main :: IO()
 main = do
-  -- コマンドライン引数からmaxTimeを取得
+  -- コマンドライン引数からmaxTime, maxDepthを取得
   args <- getArgs
   let config = case args of
-        []        -> ProverConfig defaultMaxDepth defaultMaxTime
+        [] -> ProverConfig defaultMaxDepth defaultMaxTime
         [timeStr] -> case readMaybe timeStr of
           Just t  -> ProverConfig defaultMaxDepth t
-          Nothing -> error $ "Invalid maxTime: " ++ timeStr ++ "\nUsage: program [maxTime]"
-        _         -> error "Usage: program [maxTime]"
+          Nothing -> error $ "Invalid maxTime: " ++ timeStr ++ "\n" ++ usageMsg
+        [timeStr, depthStr] -> case (readMaybe timeStr, readMaybe depthStr) of
+          (Just t, Just d) -> ProverConfig d t
+          (Nothing, _)     -> error $ "Invalid maxTime: " ++ timeStr ++ "\n" ++ usageMsg
+          (_, Nothing)     -> error $ "Invalid maxDepth: " ++ depthStr ++ "\n" ++ usageMsg
+        _ -> error usageMsg
+      usageMsg = "Usage: program [maxTime] [maxDepth]"
   
   -- 実行開始時刻を取得（レポートと証明木の対応に使用）
   now <- getCurrentTime
