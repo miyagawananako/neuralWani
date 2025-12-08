@@ -16,6 +16,7 @@ import Text.Printf (printf)
 import System.Directory (listDirectory, createDirectoryIfMissing)
 import System.FilePath ((</>), takeFileName, takeBaseName)
 import Data.List (isInfixOf, sort, intercalate)
+import Control.Monad (forM_)
 import Data.Time.Format (formatTime, defaultTimeLocale)
 import Control.Exception (try, SomeException)
 import Text.Read (readMaybe)
@@ -213,36 +214,50 @@ processOneFile config sessionId (subDir, filename) = do
           treeBaseDir = "evaluateResult" </> ("proofTrees_" ++ sessionId)
       
       -- ========================================
-      -- Normal Prover での証明探索
+      -- Normal Prover での証明探索（3段階判定）
       -- ========================================
       putStrLn ""
       putStrLn "=== Normal Prover ==="
-      (normalTree, normalTime) <- runProveWithTree normalSetting signature context t
-      let normalResult = proofTreeToResult normalTree
+      (normalResult, normalPosTrees, normalNegTrees, normalPosTime, normalNegTime) <- 
+        runProveAndDetermineResult normalSetting signature context t
+      let normalTime = normalPosTime + normalNegTime
+          normalTrees = normalPosTrees ++ normalNegTrees  -- 出力用に統合
       putStrLn $ "  Result: " ++ show normalResult
-      putStrLn $ "  Time:   " ++ T.unpack (formatTimeNominal normalTime)
+      putStrLn $ "  Time (positive): " ++ T.unpack (formatTimeNominal normalPosTime)
+      putStrLn $ "  Time (negative): " ++ T.unpack (formatTimeNominal normalNegTime)
+      putStrLn $ "  Time (total):    " ++ T.unpack (formatTimeNominal normalTime)
+      putStrLn $ "  Proof trees (positive): " ++ show (length normalPosTrees)
+      putStrLn $ "  Proof trees (negative): " ++ show (length normalNegTrees)
       
       -- 証明木をファイルに出力（normal/ サブディレクトリに保存）
       let normalTreeDir = treeBaseDir </> "normal"
-      writeProofTrees normalTreeDir baseName normalTree
+      writeProofTrees (normalTreeDir </> "positive") baseName normalPosTrees
+      writeProofTrees (normalTreeDir </> "negative") baseName normalNegTrees
       
       -- 期待値との比較
       let normalMatch = maybe False (== normalResult) expectedResult
       printMatchResult normalMatch expectedResult normalResult
       
       -- ========================================
-      -- NeuralWani Prover での証明探索
+      -- NeuralWani Prover での証明探索（3段階判定）
       -- ========================================
       putStrLn ""
       putStrLn "=== NeuralWani Prover ==="
-      (neuralTree, neuralTime) <- runProveWithTree neuralSetting signature context t
-      let neuralResult = proofTreeToResult neuralTree
+      (neuralResult, neuralPosTrees, neuralNegTrees, neuralPosTime, neuralNegTime) <- 
+        runProveAndDetermineResult neuralSetting signature context t
+      let neuralTime = neuralPosTime + neuralNegTime
+          neuralTrees = neuralPosTrees ++ neuralNegTrees  -- 出力用に統合
       putStrLn $ "  Result: " ++ show neuralResult
-      putStrLn $ "  Time:   " ++ T.unpack (formatTimeNominal neuralTime)
+      putStrLn $ "  Time (positive): " ++ T.unpack (formatTimeNominal neuralPosTime)
+      putStrLn $ "  Time (negative): " ++ T.unpack (formatTimeNominal neuralNegTime)
+      putStrLn $ "  Time (total):    " ++ T.unpack (formatTimeNominal neuralTime)
+      putStrLn $ "  Proof trees (positive): " ++ show (length neuralPosTrees)
+      putStrLn $ "  Proof trees (negative): " ++ show (length neuralNegTrees)
       
       -- 証明木をファイルに出力（neural/ サブディレクトリに保存）
       let neuralTreeDir = treeBaseDir </> "neural"
-      writeProofTrees neuralTreeDir baseName neuralTree
+      writeProofTrees (neuralTreeDir </> "positive") baseName neuralPosTrees
+      writeProofTrees (neuralTreeDir </> "negative") baseName neuralNegTrees
       
       -- 期待値との比較
       let neuralMatch = maybe False (== neuralResult) expectedResult
@@ -255,6 +270,8 @@ processOneFile config sessionId (subDir, filename) = do
       putStrLn "=== Comparison ==="
       putStrLn $ "Normal time:     " ++ T.unpack (formatTimeNominal normalTime)
       putStrLn $ "NeuralWani time: " ++ T.unpack (formatTimeNominal neuralTime)
+      putStrLn $ "Normal proof trees (pos/neg):     " ++ show (length normalPosTrees) ++ "/" ++ show (length normalNegTrees)
+      putStrLn $ "NeuralWani proof trees (pos/neg): " ++ show (length neuralPosTrees) ++ "/" ++ show (length neuralNegTrees)
       let speedup = if neuralTime > 0 
                     then realToFrac normalTime / realToFrac neuralTime :: Double
                     else 0
@@ -543,31 +560,50 @@ escapeTeX = T.concatMap escapeChar
 -- 証明木出力関連の関数
 -- ============================================
 
--- | prove' を使って証明探索を実行し、証明木を取得する
+-- | prove' を使って証明探索を実行し、全ての証明木を取得する
 runProveWithTree :: QT.ProofSearchSetting -> DTT.Signature -> [DTT.Preterm] -> DTT.Preterm
-                 -> IO (Maybe (I.Tree QT.DTTrule DTT.Judgment), NominalDiffTime)
+                 -> IO ([I.Tree QT.DTTrule DTT.Judgment], NominalDiffTime)
 runProveWithTree setting sig ctx targetType = do
   startTime <- getCurrentTime
   
   -- ProofSearchQueryを構築
   let query = DTT.ProofSearchQuery sig ctx targetType
   
-  -- prove' を使用して証明木を取得
+  -- prove' を使用して全ての証明木を取得
   let prover = Prove.prove' setting
   trees <- ListT.toList (prover query)
   
   endTime <- getCurrentTime
   let elapsedTime = diffUTCTime endTime startTime
   
-  -- 最初の証明木を返す（存在すれば）
-  case trees of
-    (tree:_) -> return (Just tree, elapsedTime)
-    []       -> return (Nothing, elapsedTime)
+  return (trees, elapsedTime)
 
--- | 証明木の結果をTI.Resultに変換
-proofTreeToResult :: Maybe (I.Tree QT.DTTrule DTT.Judgment) -> TI.Result
-proofTreeToResult (Just _) = TI.YES
-proofTreeToResult Nothing  = TI.UNKNOWN
+-- | 3段階判定で証明結果をTI.Resultに変換
+-- 1. targetType が証明できた → YES
+-- 2. 証明できなかった → Pi targetType Bot を証明できた → NO
+-- 3. どちらも証明できなかった → UNKNOWN
+runProveAndDetermineResult :: QT.ProofSearchSetting -> DTT.Signature -> [DTT.Preterm] -> DTT.Preterm
+                           -> IO (TI.Result, [I.Tree QT.DTTrule DTT.Judgment], [I.Tree QT.DTTrule DTT.Judgment], NominalDiffTime, NominalDiffTime)
+runProveAndDetermineResult setting sig ctx targetType = do
+  -- Step 1: targetType の証明を試みる
+  (posTrees, posTime) <- runProveWithTree setting sig ctx targetType
+  
+  case posTrees of
+    (_:_) -> do
+      -- 証明成功 → YES（否定の証明は試みない）
+      return (TI.YES, posTrees, [], posTime, 0)
+    [] -> do
+      -- Step 2: targetType が証明できなかった → Pi targetType Bot（否定）の証明を試みる
+      let negationType = DTT.Pi targetType DTT.Bot
+      (negTrees, negTime) <- runProveWithTree setting sig ctx negationType
+      
+      case negTrees of
+        (_:_) -> do
+          -- 否定が証明成功 → NO
+          return (TI.NO, [], negTrees, posTime, negTime)
+        [] -> do
+          -- どちらも証明できなかった → UNKNOWN
+          return (TI.UNKNOWN, [], [], posTime, negTime)
 
 -- | 証明木をテキストファイルに出力
 writeProofTreeText :: FilePath -> I.Tree QT.DTTrule DTT.Judgment -> IO ()
@@ -609,22 +645,27 @@ writeProofTreeHTML filepath tree = do
   content <- Prove.display tree
   T.writeFile filepath content
 
--- | 証明木を複数の形式で出力
-writeProofTrees :: FilePath -> String -> Maybe (I.Tree QT.DTTrule DTT.Judgment) -> IO ()
-writeProofTrees baseDir baseName maybeTree = do
+-- | 証明木を複数の形式で出力（全ての証明木を出力）
+writeProofTrees :: FilePath -> String -> [I.Tree QT.DTTrule DTT.Judgment] -> IO ()
+writeProofTrees baseDir baseName trees = do
   createDirectoryIfMissing True baseDir
-  case maybeTree of
-    Nothing -> do
+  case trees of
+    [] -> do
       -- 証明が見つからなかった場合
       let noProofFile = baseDir </> (baseName ++ "_no_proof.txt")
       writeFile noProofFile "No proof found."
-    Just tree -> do
-      -- テキスト形式
-      let textFile = baseDir </> (baseName ++ ".txt")
-      writeProofTreeText textFile tree
-      putStrLn $ "  Proof tree (text): " ++ textFile
+    _ -> do
+      -- 各証明木に番号を付けて出力
+      forM_ (zip [1..] trees) $ \(i, tree) -> do
+        let suffix = if length trees == 1 then "" else "_" ++ show (i :: Int)
+        -- テキスト形式
+        let textFile = baseDir </> (baseName ++ suffix ++ ".txt")
+        writeProofTreeText textFile tree
+        putStrLn $ "  Proof tree (text): " ++ textFile
+        
+        -- HTML形式（MathML）
+        let htmlFile = baseDir </> (baseName ++ suffix ++ ".html")
+        writeProofTreeHTML htmlFile tree
+        putStrLn $ "  Proof tree (HTML): " ++ htmlFile
       
-      -- HTML形式（MathML）
-      let htmlFile = baseDir </> (baseName ++ ".html")
-      writeProofTreeHTML htmlFile tree
-      putStrLn $ "  Proof tree (HTML): " ++ htmlFile
+      putStrLn $ "  Total proof trees: " ++ show (length trees)
