@@ -1,35 +1,31 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import qualified DTS.QueryTypes as QT
-import qualified Parser.ChartParser as CP
-import qualified Parser.PartialParsing as CP
-import Parser.LangOptions (defaultJpOptions,defaultEnOptions)
 import qualified Data.Text.Lazy as T      --text
 import qualified Data.Text.Lazy.IO as T   --text
+import Data.List (sort, intercalate)
+import Data.Maybe (fromJust)
+import Data.Time.Clock (getCurrentTime, diffUTCTime, NominalDiffTime)
+import Data.Time.Format (formatTime, defaultTimeLocale)
+import System.Environment (getArgs)
+import System.Directory (listDirectory, createDirectoryIfMissing)
+import System.FilePath ((</>), takeBaseName)
+import System.Mem (performMajorGC)
+import Text.Printf (printf)
+import Text.Read (readMaybe)
+import Control.Monad (forM_)
+import Control.DeepSeq (rnf)
+import Control.Exception (evaluate)
+import qualified ListT
+
+import qualified DTS.QueryTypes as QT
 import qualified DTS.DTTdeBruijn as DTT
-import System.Environment (setEnv, lookupEnv, getArgs)
+import qualified DTS.Prover.Wani.Prove as Prove
+import qualified Interface.Tree as I
+import qualified Interface.Text as IText
+
 import TPTP.Convert (processFile)
 import qualified TPTPInfo as TI
-import qualified JSeM
-import Data.Time.Clock (getCurrentTime, diffUTCTime, NominalDiffTime)
-import Text.Printf (printf)
-import System.Directory (listDirectory, createDirectoryIfMissing)
-import System.FilePath ((</>), takeFileName, takeBaseName)
-import Data.List (isInfixOf, sort, intercalate)
-import Control.Monad (forM_)
-import Data.Time.Format (formatTime, defaultTimeLocale)
-import Control.Exception (try, SomeException)
-import Text.Read (readMaybe)
 
--- 証明木関連のインポート
-import qualified DTS.Prover.Wani.Prove as Prove   -- prove' 関数
-import qualified Interface.Tree as I              -- Tree データ型
-import qualified Interface.Text as IText          -- toText
-import qualified Interface.TeX as ITeX            -- toTeX
-import qualified Interface.HTML as IHTML          -- toMathML, HTML出力
-import qualified ListT                            -- ListT モナド
-
--- | 評価結果を保持するデータ型
 data EvalResult = EvalResult
   { erFilename       :: T.Text
   , erExpected       :: Maybe TI.Result
@@ -41,74 +37,70 @@ data EvalResult = EvalResult
   , erNeuralMatch    :: Bool
   } deriving (Show)
 
--- | スキップされたファイルの情報
 data SkippedFile = SkippedFile
   { sfFilename :: T.Text
   , sfReason   :: T.Text
   } deriving (Show)
 
--- | data/TPTP/ ディレクトリのパス
 tptpDir :: FilePath
 tptpDir = "data/TPTP"
 
--- | 対象のサブディレクトリ
 targetSubDirs :: [FilePath]
 targetSubDirs = ["SYN"]
 
--- | Proverの設定パラメータ（デフォルト値）
 defaultMaxDepth :: Int
 defaultMaxDepth = 9
 
 defaultMaxTime :: Int
 defaultMaxTime = 6000
 
--- | Prover設定を保持するデータ型
 data ProverConfig = ProverConfig
-  { cfgMaxDepth :: Int
-  , cfgMaxTime  :: Int
+  { cfgMaxDepth     :: Int
+  , cfgMaxTime      :: Int
+  , cfgLogicSystem  :: Maybe QT.LogicSystem  -- Nothing=plain, Intuitionistic=efq, Classical=dne
   } deriving (Show)
 
 main :: IO()
 main = do
-  -- コマンドライン引数からmaxTime, maxDepthを取得
+  -- コマンドライン引数からmaxTime, maxDepth, logicSystemを取得
   args <- getArgs
   let config = case args of
-        [] -> ProverConfig defaultMaxDepth defaultMaxTime
+        -- デフォルト: Classical（dne）を使用
+        [] -> ProverConfig defaultMaxDepth defaultMaxTime (Just QT.Classical)
         [timeStr] -> case readMaybe timeStr of
-          Just t  -> ProverConfig defaultMaxDepth t
+          Just t  -> ProverConfig defaultMaxDepth t (Just QT.Classical)
           Nothing -> error $ "Invalid maxTime: " ++ timeStr ++ "\n" ++ usageMsg
         [timeStr, depthStr] -> case (readMaybe timeStr, readMaybe depthStr) of
-          (Just t, Just d) -> ProverConfig d t
+          (Just t, Just d) -> ProverConfig d t (Just QT.Classical)
           (Nothing, _)     -> error $ "Invalid maxTime: " ++ timeStr ++ "\n" ++ usageMsg
           (_, Nothing)     -> error $ "Invalid maxDepth: " ++ depthStr ++ "\n" ++ usageMsg
+        [timeStr, depthStr, logicStr] -> case (readMaybe timeStr, readMaybe depthStr, parseLogicSystem logicStr) of
+          (Just t, Just d, Just ls) -> ProverConfig d t ls
+          (Nothing, _, _)     -> error $ "Invalid maxTime: " ++ timeStr ++ "\n" ++ usageMsg
+          (_, Nothing, _)     -> error $ "Invalid maxDepth: " ++ depthStr ++ "\n" ++ usageMsg
+          (_, _, Nothing)     -> error $ "Invalid logicSystem: " ++ logicStr ++ " (use 'plain', 'efq', or 'dne')\n" ++ usageMsg
         _ -> error usageMsg
-      usageMsg = "Usage: program [maxTime] [maxDepth]"
+      usageMsg = "Usage: program [maxTime] [maxDepth] [plain|efq|dne]\n"
+      -- Convert command line argument to Maybe QT.LogicSystem
+      parseLogicSystem "plain" = Just Nothing
+      parseLogicSystem "efq"   = Just (Just QT.Intuitionistic)
+      parseLogicSystem "dne"   = Just (Just QT.Classical)
+      parseLogicSystem _       = Nothing
   
   -- 実行開始時刻を取得（レポートと証明木の対応に使用）
   now <- getCurrentTime
   let timestamp = formatTime defaultTimeLocale "%Y-%m-%d_%H-%M-%S" now
-      configStr = "D" ++ show (cfgMaxDepth config) ++ "T" ++ show (cfgMaxTime config)
+      logicStr = logicSystemToStr (cfgLogicSystem config)
+      configStr = "D" ++ show (cfgMaxDepth config) ++ "T" ++ show (cfgMaxTime config) ++ "_" ++ logicStr
       sessionId = configStr ++ "_" ++ timestamp
   
   putStrLn $ "=== Prover Configuration ==="
-  putStrLn $ "maxDepth: " ++ show (cfgMaxDepth config)
-  putStrLn $ "maxTime:  " ++ show (cfgMaxTime config)
-  putStrLn $ "Session:  " ++ sessionId
+  putStrLn $ "maxDepth:     " ++ show (cfgMaxDepth config)
+  putStrLn $ "maxTime:      " ++ show (cfgMaxTime config)
+  putStrLn $ "logicSystem:  " ++ logicStr
+  putStrLn $ "Session:      " ++ sessionId
   putStrLn ""
-  
-  -- ========================================
-  -- 単一ファイルを指定する場合はこちらをコメント解除
-  -- ========================================
-  -- let singleFile = ("SYN", "SYN000+1.p")
-  -- putStrLn $ "Processing single file: " ++ show singleFile
-  -- result <- processOneFile config sessionId singleFile
-  -- case result of
-  --   Left skipped -> putStrLn $ "Skipped: " ++ T.unpack (sfReason skipped)
-  --   Right eval   -> writeTexReport config sessionId [eval] []
-  
-  -- ========================================
-  -- 全FOFファイルを処理する場合はこちら（デフォルト）
-  -- ========================================
+
   -- data/TPTP/ 配下のサブディレクトリからファイルを取得
   -- fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
   
@@ -130,6 +122,12 @@ main = do
   
   -- サマリーを表示
   printSummary evaluated skipped
+
+-- | LogicSystemを文字列に変換
+logicSystemToStr :: Maybe QT.LogicSystem -> String
+logicSystemToStr Nothing                  = "plain"
+logicSystemToStr (Just QT.Intuitionistic) = "efq"
+logicSystemToStr (Just QT.Classical)      = "dne"
 
 -- | 結果を分離する
 partitionResults :: [Either SkippedFile EvalResult] -> ([SkippedFile], [EvalResult])
@@ -187,9 +185,9 @@ processOneFile config sessionId (subDir, filename) = do
         , sfReason   = T.pack $ intercalate ", " errors
         }
     else do
-      let Just t    = target
-          Just st   = status
-          Just lang = language
+      let t    = fromJust target
+          st   = fromJust status
+          lang = fromJust language
       -- 全てのデータが正しく取得できた
       putStrLn $ "=== File: " ++ subDir </> filename ++ " ==="
       putStrLn $ "  context:   " ++ show (length context) ++ " axioms"
@@ -207,7 +205,7 @@ processOneFile config sessionId (subDir, filename) = do
       let neuralSetting = QT.defaultProofSearchSetting {
                 QT.maxDepth = Just (cfgMaxDepth config),
                 QT.maxTime = Just (cfgMaxTime config)
-                -- QT.neuralWani = Just getPrioritizedRules  -- 将来の実装用
+                -- QT.neuralWani = Just getPrioritizedRules
                 }
       
       -- 期待される結果（StatusからResultに変換）
@@ -217,16 +215,22 @@ processOneFile config sessionId (subDir, filename) = do
       -- 証明木出力用のディレクトリとベース名
       let baseName = takeBaseName filename
           treeBaseDir = "evaluateResult" </> ("proofTrees_" ++ sessionId)
-      
+
       -- ========================================
-      -- Normal Prover での証明探索（3段階判定）
+      -- 共通データの強制評価 (Warm-up)
+      -- ========================================
+      -- ここで context, signature, target を完全に評価しきります。
+      -- これにより、最初のProverがデータ読み込みやパースの遅延評価コストを負うのを防ぎます。
+      evaluate $ rnf (context, signature, t)
+
+      -- ========================================
+      -- Normal Prover での証明探索
       -- ========================================
       putStrLn ""
       putStrLn "=== Normal Prover ==="
       (normalResult, normalPosTrees, normalNegTrees, normalPosTime, normalNegTime) <- 
-        runProveAndDetermineResult normalSetting signature context t
+        runProveAndDetermineResult (cfgLogicSystem config) normalSetting signature context t
       let normalTime = normalPosTime + normalNegTime
-          normalTrees = normalPosTrees ++ normalNegTrees  -- 出力用に統合
       putStrLn $ "  Result: " ++ show normalResult
       putStrLn $ "  Time (positive): " ++ T.unpack (formatTimeNominal normalPosTime)
       putStrLn $ "  Time (negative): " ++ T.unpack (formatTimeNominal normalNegTime)
@@ -244,14 +248,13 @@ processOneFile config sessionId (subDir, filename) = do
       printMatchResult normalMatch expectedResult normalResult
       
       -- ========================================
-      -- NeuralWani Prover での証明探索（3段階判定）
+      -- NeuralWani Prover での証明探索
       -- ========================================
       putStrLn ""
       putStrLn "=== NeuralWani Prover ==="
       (neuralResult, neuralPosTrees, neuralNegTrees, neuralPosTime, neuralNegTime) <- 
-        runProveAndDetermineResult neuralSetting signature context t
+        runProveAndDetermineResult (cfgLogicSystem config) neuralSetting signature context t
       let neuralTime = neuralPosTime + neuralNegTime
-          neuralTrees = neuralPosTrees ++ neuralNegTrees  -- 出力用に統合
       putStrLn $ "  Result: " ++ show neuralResult
       putStrLn $ "  Time (positive): " ++ T.unpack (formatTimeNominal neuralPosTime)
       putStrLn $ "  Time (negative): " ++ T.unpack (formatTimeNominal neuralNegTime)
@@ -389,6 +392,7 @@ generateTexContent config sessionId results skipped = T.unlines
   , "\\begin{itemize}"
   , "\\item maxDepth: " <> T.pack (show (cfgMaxDepth config))
   , "\\item maxTime: " <> T.pack (show (cfgMaxTime config))
+  , "\\item logicSystem: \\textbf{" <> T.pack (logicSystemToStr (cfgLogicSystem config)) <> "}"
   , "\\item Session ID: \\texttt{" <> escapeTeX (T.pack sessionId) <> "}"
   , "\\item Proof Trees (Normal): \\texttt{evaluateResult/proofTrees\\_" <> escapeTeX (T.pack sessionId) <> "/normal/}"
   , "\\item Proof Trees (NeuralWani): \\texttt{evaluateResult/proofTrees\\_" <> escapeTeX (T.pack sessionId) <> "/neural/}"
@@ -583,65 +587,82 @@ runProveWithTree setting sig ctx targetType = do
   
   return (trees, elapsedTime)
 
--- | 3段階判定で証明結果をTI.Resultに変換
--- 1. targetType が証明できた → YES
--- 2. 証明できなかった → Pi targetType Bot を証明できた → NO
--- 3. どちらも証明できなかった → UNKNOWN
-runProveAndDetermineResult :: QT.ProofSearchSetting -> DTT.Signature -> [DTT.Preterm] -> DTT.Preterm
+-- | 証明結果をTI.Resultに変換
+-- logicSystem に応じて証明の順序が変わる:
+--   Nothing (plain): plainのみで証明
+--     1. targetType をplainで証明 → YES
+--     2. Pi targetType Bot をplainで証明 → NO
+--     3. どちらも証明できなかった → UNKNOWN
+--   Just Intuitionistic (efq): plain -> efq の順で証明
+--     (yesの証明) plain -> efq -> (noの証明) plain -> efq
+--   Just Classical (dne): plain -> dne の順で証明
+--     (yesの証明) plain -> dne -> (noの証明) plain -> dne
+runProveAndDetermineResult :: Maybe QT.LogicSystem -> QT.ProofSearchSetting -> DTT.Signature -> [DTT.Preterm] -> DTT.Preterm
                            -> IO (TI.Result, [I.Tree QT.DTTrule DTT.Judgment], [I.Tree QT.DTTrule DTT.Judgment], NominalDiffTime, NominalDiffTime)
-runProveAndDetermineResult setting sig ctx targetType = do
-  -- Step 1: targetType の証明を試みる
-  (posTrees, posTime) <- runProveWithTree setting sig ctx targetType
+runProveAndDetermineResult maybeLogicSystem baseSetting sig ctx targetType = do
+  performMajorGC
+  -- plain設定（logicSystem = Nothing）を作成
+  let plainSetting = baseSetting { QT.logicSystem = Nothing }
+      negationType = DTT.Pi targetType DTT.Bot
   
-  case posTrees of
+  -- Step 1: targetType の証明を plain で試みる
+  (posTreesPlain, posTimePlain) <- runProveWithTree plainSetting sig ctx targetType
+  
+  case posTreesPlain of
     (_:_) -> do
-      -- 証明成功 → YES（否定の証明は試みない）
-      return (TI.YES, posTrees, [], posTime, 0)
+      -- plain で証明成功 → YES
+      return (TI.YES, posTreesPlain, [], posTimePlain, 0)
     [] -> do
-      -- Step 2: targetType が証明できなかった → Pi targetType Bot（否定）の証明を試みる
-      let negationType = DTT.Pi targetType DTT.Bot
-      (negTrees, negTime) <- runProveWithTree setting sig ctx negationType
-      
-      case negTrees of
-        (_:_) -> do
-          -- 否定が証明成功 → NO
-          return (TI.NO, [], negTrees, posTime, negTime)
-        [] -> do
-          -- どちらも証明できなかった → UNKNOWN
-          return (TI.UNKNOWN, [], [], posTime, negTime)
+      case maybeLogicSystem of
+        Nothing -> do
+          -- plainのみの場合: 否定の証明を plain で試みる
+          (negTreesPlain, negTimePlain) <- runProveWithTree plainSetting sig ctx negationType
+          
+          case negTreesPlain of
+            (_:_) -> do
+              -- plain で否定が証明成功 → NO
+              return (TI.NO, [], negTreesPlain, posTimePlain, negTimePlain)
+            [] -> do
+              -- どちらも証明できなかった → UNKNOWN
+              return (TI.UNKNOWN, [], [], posTimePlain, negTimePlain)
+        
+        Just logicSys -> do
+          -- efq または dne を使用する場合
+          let extSetting = baseSetting { QT.logicSystem = Just logicSys }
+          
+          -- Step 2: targetType の証明を efq/dne で試みる
+          (posTreesExt, posTimeExt) <- runProveWithTree extSetting sig ctx targetType
+          let totalPosTime = posTimePlain + posTimeExt
+          
+          case posTreesExt of
+            (_:_) -> do
+              -- efq/dne で証明成功 → YES
+              return (TI.YES, posTreesExt, [], totalPosTime, 0)
+            [] -> do
+              -- Step 3: 否定の証明を plain で試みる
+              (negTreesPlain, negTimePlain) <- runProveWithTree plainSetting sig ctx negationType
+              
+              case negTreesPlain of
+                (_:_) -> do
+                  -- plain で否定が証明成功 → NO
+                  return (TI.NO, [], negTreesPlain, totalPosTime, negTimePlain)
+                [] -> do
+                  -- Step 4: 否定の証明を efq/dne で試みる
+                  (negTreesExt, negTimeExt) <- runProveWithTree extSetting sig ctx negationType
+                  let totalNegTime = negTimePlain + negTimeExt
+                  
+                  case negTreesExt of
+                    (_:_) -> do
+                      -- efq/dne で否定が証明成功 → NO
+                      return (TI.NO, [], negTreesExt, totalPosTime, totalNegTime)
+                    [] -> do
+                      -- どちらも証明できなかった → UNKNOWN
+                      return (TI.UNKNOWN, [], [], totalPosTime, totalNegTime)
 
 -- | 証明木をテキストファイルに出力
 writeProofTreeText :: FilePath -> I.Tree QT.DTTrule DTT.Judgment -> IO ()
 writeProofTreeText filepath tree = do
   let content = IText.toText tree
-  T.writeFile filepath content
-
--- | 証明木をTeX形式でファイルに出力
-writeProofTreeTeX :: FilePath -> I.Tree QT.DTTrule DTT.Judgment -> IO ()
-writeProofTreeTeX filepath tree = do
-  let treeTeX = ITeX.toTeX tree
-      content = T.unlines
-        [ "\\documentclass[a4paper,10pt]{article}"
-        , "\\usepackage[utf8]{inputenc}"
-        , "\\usepackage{amsmath}"
-        , "\\usepackage{amssymb}"
-        , "\\usepackage{bussproofs}"
-        , "\\usepackage{geometry}"
-        , "\\geometry{margin=1cm}"
-        , ""
-        , "% Natural Deduction マクロ"
-        , "\\newcommand{\\nd}[3]{\\AxiomC{#3}\\RightLabel{\\scriptsize #1}\\UnaryInfC{#2}}"
-        , ""
-        , "\\begin{document}"
-        , ""
-        , "\\section*{Proof Tree}"
-        , ""
-        , "\\begin{prooftree}"
-        , treeTeX
-        , "\\end{prooftree}"
-        , ""
-        , "\\end{document}"
-        ]
   T.writeFile filepath content
 
 -- | 証明木をHTML（MathML）形式でファイルに出力

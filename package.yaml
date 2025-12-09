@@ -43,6 +43,7 @@ dependencies:
   - mtl >= 2.2.2 # Except モナド用
   - data-default
   - jsem >= 1.1
+  - deepseq
 
 ghc-options:
   - -Wall
