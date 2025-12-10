@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 import qualified Data.Text.Lazy as T      --text
 import qualified Data.Text.Lazy.IO as T   --text
@@ -14,7 +15,7 @@ import Text.Printf (printf)
 import Text.Read (readMaybe)
 import Control.Monad (forM_)
 import Control.DeepSeq (rnf)
-import Control.Exception (evaluate)
+import Control.Exception (evaluate, try, SomeException)
 import qualified ListT
 
 import qualified DTS.QueryTypes as QT
@@ -105,7 +106,8 @@ main = do
   -- fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
   
   -- let fofFiles = sort fofFilesWithSubDir
-  let fofFiles = [("SYN", "SYN950+1.p"), ("SYN", "SYN952+1.p"), ("SYN", "SYN958+1.p")]
+  -- let fofFiles = [("SYN", "SYN950+1.p"), ("SYN", "SYN952+1.p"), ("SYN", "SYN958+1.p")]
+  let fofFiles = [("SYN", "SYN007+1.014.p")]
   
   -- Found 376 FOF files (with '+' in filename)！！
   putStrLn $ "Found " ++ show (length fofFiles) ++ " FOF files (with '+' in filename)"
@@ -569,7 +571,8 @@ escapeTeX = T.concatMap escapeChar
 -- 証明木出力関連の関数
 -- ============================================
 
--- | prove' を使って証明探索を実行し、全ての証明木を取得する
+-- | prove' を使って証明探索を実行し、最初の証明木を取得する
+-- 遅延評価を活かして、最初の証明木が見つかった時点で探索を打ち切る
 runProveWithTree :: QT.ProofSearchSetting -> DTT.Signature -> [DTT.Preterm] -> DTT.Preterm
                  -> IO ([I.Tree QT.DTTrule DTT.Judgment], NominalDiffTime)
 runProveWithTree setting sig ctx targetType = do
@@ -578,9 +581,15 @@ runProveWithTree setting sig ctx targetType = do
   -- ProofSearchQueryを構築
   let query = DTT.ProofSearchQuery sig ctx targetType
   
-  -- prove' を使用して全ての証明木を取得
+  -- prove' を使用して証明木を取得（遅延評価を活かす）
   let prover = Prove.prove' setting
-  trees <- ListT.toList (prover query)
+  
+  -- 最初の証明木のみを取得
+  -- ListT.head は最初の要素だけを取得し、残りは評価しない
+  maybeTree <- ListT.head (prover query)
+  let trees = case maybeTree of
+        Nothing -> []
+        Just tree -> [tree]
   
   endTime <- getCurrentTime
   let elapsedTime = diffUTCTime endTime startTime
@@ -600,6 +609,18 @@ runProveWithTree setting sig ctx targetType = do
 runProveAndDetermineResult :: Maybe QT.LogicSystem -> QT.ProofSearchSetting -> DTT.Signature -> [DTT.Preterm] -> DTT.Preterm
                            -> IO (TI.Result, [I.Tree QT.DTTrule DTT.Judgment], [I.Tree QT.DTTrule DTT.Judgment], NominalDiffTime, NominalDiffTime)
 runProveAndDetermineResult maybeLogicSystem baseSetting sig ctx targetType = do
+  -- 例外をキャッチ（StackOverflowなど）
+  result <- try $ runProveAndDetermineResultInner maybeLogicSystem baseSetting sig ctx targetType
+  case result of
+    Right r -> return r
+    Left (e :: SomeException) -> do
+      putStrLn $ "  [ERROR] Exception during proof search: " ++ show e
+      return (TI.UNKNOWN, [], [], 0, 0)
+
+-- | 内部実装（例外処理なし）
+runProveAndDetermineResultInner :: Maybe QT.LogicSystem -> QT.ProofSearchSetting -> DTT.Signature -> [DTT.Preterm] -> DTT.Preterm
+                                -> IO (TI.Result, [I.Tree QT.DTTrule DTT.Judgment], [I.Tree QT.DTTrule DTT.Judgment], NominalDiffTime, NominalDiffTime)
+runProveAndDetermineResultInner maybeLogicSystem baseSetting sig ctx targetType = do
   performMajorGC
   -- plain設定（logicSystem = Nothing）を作成
   let plainSetting = baseSetting { QT.logicSystem = Nothing }
