@@ -94,8 +94,9 @@ main = do
   now <- getCurrentTime
   let timestamp = formatTime defaultTimeLocale "%Y-%m-%d_%H-%M-%S" now
       logicStr = logicSystemToStr (cfgLogicSystem config)
+      problemName = takeBaseName targetFile  -- 拡張子を除いた問題名（例：SYN950+1）
       configStr = "D" ++ show (cfgMaxDepth config) ++ "T" ++ show (cfgMaxTime config) ++ "_" ++ logicStr
-      sessionId = configStr ++ "_" ++ timestamp
+      sessionId = problemName ++ "_" ++ configStr ++ "_" ++ timestamp
   
   putStrLn $ "=== Prover Configuration ==="
   putStrLn $ "targetFile:   " ++ targetFile
@@ -108,15 +109,15 @@ main = do
   -- コマンドライン引数で指定されたファイルを対象とする
   let fofFiles = [("SYN", targetFile)]
 
-  fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
-  let fofFiles = sort fofFilesWithSubDir
+  -- fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
+  -- let fofFiles = sort fofFilesWithSubDir
   -- let fofFiles = [("SYN", "SYN950+1.p"), ("SYN", "SYN952+1.p"), ("SYN", "SYN958+1.p")]
   -- let fofFiles = [("SYN", "SYN007+1.014.p")]
   
   -- Found 376 FOF files (with '+' in filename)！！
   putStrLn $ "Found " ++ show (length fofFiles) ++ " FOF files (with '+' in filename)"
-  putStrLn "Files:"
-  mapM_ (\(subDir, filename) -> putStrLn $ "  " ++ subDir ++ "/" ++ filename) fofFiles
+  -- putStrLn "Files:"
+  -- mapM_ (\(subDir, filename) -> putStrLn $ "  " ++ subDir ++ "/" ++ filename) fofFiles
   putStrLn ""
   
   -- 各ファイルを処理して結果を集計
@@ -255,59 +256,69 @@ processOneFile config sessionId (subDir, filename) = do
       let normalMatch = maybe False (== normalResult) expectedResult
       printMatchResult normalMatch expectedResult normalResult
       
-      -- ========================================
-      -- NeuralWani Prover での証明探索
-      -- ========================================
-      putStrLn ""
-      putStrLn "=== NeuralWani Prover ==="
-      (neuralResult, neuralPosTrees, neuralNegTrees, neuralPosTime, neuralNegTime) <- 
-        runProveAndDetermineResult (cfgLogicSystem config) neuralSetting signature context t
-      let neuralTime = neuralPosTime + neuralNegTime
-      putStrLn $ "  Result: " ++ show neuralResult
-      putStrLn $ "  Time (positive): " ++ T.unpack (formatTimeNominal neuralPosTime)
-      putStrLn $ "  Time (negative): " ++ T.unpack (formatTimeNominal neuralNegTime)
-      putStrLn $ "  Time (total):    " ++ T.unpack (formatTimeNominal neuralTime)
-      putStrLn $ "  Proof trees (positive): " ++ show (length neuralPosTrees)
-      putStrLn $ "  Proof trees (negative): " ++ show (length neuralNegTrees)
+      -- -- ========================================
+      -- -- NeuralWani Prover での証明探索
+      -- -- ========================================
+      -- putStrLn ""
+      -- putStrLn "=== NeuralWani Prover ==="
+      -- (neuralResult, neuralPosTrees, neuralNegTrees, neuralPosTime, neuralNegTime) <- 
+      --   runProveAndDetermineResult (cfgLogicSystem config) neuralSetting signature context t
+      -- let neuralTime = neuralPosTime + neuralNegTime
+      -- putStrLn $ "  Result: " ++ show neuralResult
+      -- putStrLn $ "  Time (positive): " ++ T.unpack (formatTimeNominal neuralPosTime)
+      -- putStrLn $ "  Time (negative): " ++ T.unpack (formatTimeNominal neuralNegTime)
+      -- putStrLn $ "  Time (total):    " ++ T.unpack (formatTimeNominal neuralTime)
+      -- putStrLn $ "  Proof trees (positive): " ++ show (length neuralPosTrees)
+      -- putStrLn $ "  Proof trees (negative): " ++ show (length neuralNegTrees)
       
-      -- 証明木をファイルに出力（neural/ サブディレクトリに保存）
-      let neuralTreeDir = treeBaseDir </> "neural"
-      writeProofTrees (neuralTreeDir </> "positive") baseName neuralPosTrees
-      writeProofTrees (neuralTreeDir </> "negative") baseName neuralNegTrees
+      -- -- 証明木をファイルに出力（neural/ サブディレクトリに保存）
+      -- let neuralTreeDir = treeBaseDir </> "neural"
+      -- writeProofTrees (neuralTreeDir </> "positive") baseName neuralPosTrees
+      -- writeProofTrees (neuralTreeDir </> "negative") baseName neuralNegTrees
       
-      -- 期待値との比較
-      let neuralMatch = maybe False (== neuralResult) expectedResult
-      printMatchResult neuralMatch expectedResult neuralResult
+      -- -- 期待値との比較
+      -- let neuralMatch = maybe False (== neuralResult) expectedResult
+      -- printMatchResult neuralMatch expectedResult neuralResult
       
-      -- ========================================
-      -- 比較結果
-      -- ========================================
-      putStrLn ""
-      putStrLn "=== Comparison ==="
-      putStrLn $ "Normal time:     " ++ T.unpack (formatTimeNominal normalTime)
-      putStrLn $ "NeuralWani time: " ++ T.unpack (formatTimeNominal neuralTime)
-      putStrLn $ "Normal proof trees (pos/neg):     " ++ show (length normalPosTrees) ++ "/" ++ show (length normalNegTrees)
-      putStrLn $ "NeuralWani proof trees (pos/neg): " ++ show (length neuralPosTrees) ++ "/" ++ show (length neuralNegTrees)
-      let speedup = if neuralTime > 0 
-                    then realToFrac normalTime / realToFrac neuralTime :: Double
-                    else 0
-      printf "Speedup: %.2fx\n" speedup
-      putStrLn $ "Results match: " ++ show (normalResult == neuralResult)
+      -- -- ========================================
+      -- -- 比較結果
+      -- -- ========================================
+      -- putStrLn ""
+      -- putStrLn "=== Comparison ==="
+      -- putStrLn $ "Normal time:     " ++ T.unpack (formatTimeNominal normalTime)
+      -- putStrLn $ "NeuralWani time: " ++ T.unpack (formatTimeNominal neuralTime)
+      -- putStrLn $ "Normal proof trees (pos/neg):     " ++ show (length normalPosTrees) ++ "/" ++ show (length normalNegTrees)
+      -- putStrLn $ "NeuralWani proof trees (pos/neg): " ++ show (length neuralPosTrees) ++ "/" ++ show (length neuralNegTrees)
+      -- let speedup = if neuralTime > 0 
+      --               then realToFrac normalTime / realToFrac neuralTime :: Double
+      --               else 0
+      -- printf "Speedup: %.2fx\n" speedup
+      -- putStrLn $ "Results match: " ++ show (normalResult == neuralResult)
       
-      putStrLn ""
-      putStrLn "=========================================="
-      putStrLn ""
+      -- putStrLn ""
+      -- putStrLn "=========================================="
+      -- putStrLn ""
       
+      -- return $ Right EvalResult
+      --   { erFilename     = filenameText
+      --   , erExpected     = expectedResult
+      --   , erNormalResult = normalResult
+      --   , erNormalTime   = normalTime
+      --   , erNeuralResult = neuralResult
+      --   , erNeuralTime   = neuralTime
+      --   , erNormalMatch  = normalMatch
+      --   , erNeuralMatch  = neuralMatch
+      --   }
       return $ Right EvalResult
         { erFilename     = filenameText
         , erExpected     = expectedResult
         , erNormalResult = normalResult
         , erNormalTime   = normalTime
-        , erNeuralResult = neuralResult
-        , erNeuralTime   = neuralTime
+        , erNeuralResult = normalResult
+        , erNeuralTime   = normalTime
         , erNormalMatch  = normalMatch
-        , erNeuralMatch  = neuralMatch
-        }
+        , erNeuralMatch  = normalMatch
+      }
 
 -- | 期待値との比較結果を表示する
 printMatchResult :: Bool -> Maybe TI.Result -> TI.Result -> IO ()
