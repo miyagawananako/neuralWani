@@ -200,9 +200,6 @@ main = do
       iter = read (args !! 7) :: Int       -- エポック数
       delimiterToken = read (args !! 8) :: DelimiterToken  -- 区切り用トークンの種類
 
-  -- waniTestデータセットの読み込み
-  waniTestDataset <- loadActionsFromBinary proofSearchResultFilePath
-
   -- JSeMデータセットの読み込み
   jsemFiles <- listDirectory "data/JSeM/"
   jsemDatasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
@@ -211,7 +208,7 @@ main = do
   let isIncludeF = False
 
   -- データセットの前処理
-  let originalDataset = waniTestDataset ++ concat jsemDatasets
+  let originalDataset = concat jsemDatasets
       dataset = if isIncludeF
                 then originalDataset
                 else filter (\(_, rule) -> (rule /= QT.TypeF) && (rule /= QT.PiF) && (rule /= QT.SigmaF) && (rule /= QT.DisjF) && (rule /= QT.BotF) && (rule /= QT.TopF) && (rule /= QT.EnumF) && (rule /= QT.IqF) && (rule /= QT.NatF)) originalDataset
@@ -233,7 +230,7 @@ main = do
   print $ "countedRules (training data) " ++ show countedTrainRules
 
   -- ハイパーパラメータの設定
-  let device = Device CPU 0                 -- 使用するデバイス（CPU/GPU）
+  let device = Device CUDA 0                 -- 使用するデバイス（CPU/GPU）
       biDirectional = bi                    -- 双方向LSTMを使用するかどうか
       embDim = emb                          -- 埋め込み層の次元数
       numOfLayers = l                       -- LSTMの層数
@@ -253,8 +250,18 @@ main = do
   print $ "iter " ++ show iter
   print $ "delimiterToken " ++ show delimiterToken
 
+  -- 学習開始時刻の記録
+  startTime <- Time.getCurrentTime
+  print $ "Training started at: " ++ show startTime
+
   -- モデルの学習
   (trainedModel, lossesPair, frequentWords') <- trainModel device hyperParams trainData validData biDirectional iter numberOfBatch learningRate frequentWords
+
+  -- 学習終了時刻の記録と学習時間の計算
+  endTime <- Time.getCurrentTime
+  let trainingDuration = Time.diffUTCTime endTime startTime
+  print $ "Training finished at: " ++ show endTime
+  print $ "Total training time: " ++ show trainingDuration
 
   -- 現在時刻の取得（フォルダ名に使用）
   currentTime <- getZonedTime
@@ -270,6 +277,7 @@ main = do
       graphFileName =  newFolderPath ++ "/graph-seq-class"  ++ ".png"
       confusionMatrixFileName =  newFolderPath ++ "/confusion-matrix" ++ ".png"
       classificationReportFileName =  newFolderPath ++ "/classification-report" ++ ".txt"
+      trainingTimeFileName = newFolderPath ++ "/training-time" ++ ".txt"
       learningCurveTitle = "type: " ++ show delimiterToken ++ " bi: " ++ show biDirectional ++ " s: " ++ show numberOfBatch ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
 
@@ -298,6 +306,12 @@ main = do
   T.putStr classificationReport
 
   B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
+
+  -- 学習時間の保存
+  let trainingTimeReport = TL.pack $ "Training Duration: " ++ show trainingDuration ++ "\n" ++
+                                      "Start Time: " ++ show startTime ++ "\n" ++
+                                      "End Time: " ++ show endTime ++ "\n"
+  T.writeFile trainingTimeFileName (TL.toStrict trainingTimeReport)
 
   -- 混同行列の描画
   drawConfusionMatrix confusionMatrixFileName (length allLabels) (zip predictedLabel (snd $ unzip $ testData))
