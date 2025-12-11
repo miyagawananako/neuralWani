@@ -63,25 +63,27 @@ data ProverConfig = ProverConfig
 
 main :: IO()
 main = do
-  -- コマンドライン引数からmaxTime, maxDepth, logicSystemを取得
+  -- コマンドライン引数からファイル名, maxTime, maxDepth, logicSystemを取得
   args <- getArgs
-  let config = case args of
-        -- デフォルト: Classical（dne）を使用
-        [] -> ProverConfig defaultMaxDepth defaultMaxTime (Just QT.Classical)
-        [timeStr] -> case readMaybe timeStr of
-          Just t  -> ProverConfig defaultMaxDepth t (Just QT.Classical)
+  let (targetFile, config) = case args of
+        -- ファイル名は必須
+        [] -> error usageMsg
+        [filename] -> (filename, ProverConfig defaultMaxDepth defaultMaxTime (Just QT.Classical))
+        [filename, timeStr] -> case readMaybe timeStr of
+          Just t  -> (filename, ProverConfig defaultMaxDepth t (Just QT.Classical))
           Nothing -> error $ "Invalid maxTime: " ++ timeStr ++ "\n" ++ usageMsg
-        [timeStr, depthStr] -> case (readMaybe timeStr, readMaybe depthStr) of
-          (Just t, Just d) -> ProverConfig d t (Just QT.Classical)
+        [filename, timeStr, depthStr] -> case (readMaybe timeStr, readMaybe depthStr) of
+          (Just t, Just d) -> (filename, ProverConfig d t (Just QT.Classical))
           (Nothing, _)     -> error $ "Invalid maxTime: " ++ timeStr ++ "\n" ++ usageMsg
           (_, Nothing)     -> error $ "Invalid maxDepth: " ++ depthStr ++ "\n" ++ usageMsg
-        [timeStr, depthStr, logicStr] -> case (readMaybe timeStr, readMaybe depthStr, parseLogicSystem logicStr) of
-          (Just t, Just d, Just ls) -> ProverConfig d t ls
+        [filename, timeStr, depthStr, logicStr] -> case (readMaybe timeStr, readMaybe depthStr, parseLogicSystem logicStr) of
+          (Just t, Just d, Just ls) -> (filename, ProverConfig d t ls)
           (Nothing, _, _)     -> error $ "Invalid maxTime: " ++ timeStr ++ "\n" ++ usageMsg
           (_, Nothing, _)     -> error $ "Invalid maxDepth: " ++ depthStr ++ "\n" ++ usageMsg
           (_, _, Nothing)     -> error $ "Invalid logicSystem: " ++ logicStr ++ " (use 'plain', 'efq', or 'dne')\n" ++ usageMsg
         _ -> error usageMsg
-      usageMsg = "Usage: program [maxTime] [maxDepth] [plain|efq|dne]\n"
+      usageMsg = "Usage: program <filename> [maxTime] [maxDepth] [plain|efq|dne]\n" ++
+                 "  filename: TPTP file name in data/TPTP/SYN/ (e.g., SYN007+1.014.p)\n"
       -- Convert command line argument to Maybe QT.LogicSystem
       parseLogicSystem "plain" = Just Nothing
       parseLogicSystem "efq"   = Just (Just QT.Intuitionistic)
@@ -96,21 +98,25 @@ main = do
       sessionId = configStr ++ "_" ++ timestamp
   
   putStrLn $ "=== Prover Configuration ==="
+  putStrLn $ "targetFile:   " ++ targetFile
   putStrLn $ "maxDepth:     " ++ show (cfgMaxDepth config)
   putStrLn $ "maxTime:      " ++ show (cfgMaxTime config)
   putStrLn $ "logicSystem:  " ++ logicStr
   putStrLn $ "Session:      " ++ sessionId
   putStrLn ""
 
-  -- data/TPTP/ 配下のサブディレクトリからファイルを取得
-  -- fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
-  
-  -- let fofFiles = sort fofFilesWithSubDir
+  -- コマンドライン引数で指定されたファイルを対象とする
+  let fofFiles = [("SYN", targetFile)]
+
+  fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
+  let fofFiles = sort fofFilesWithSubDir
   -- let fofFiles = [("SYN", "SYN950+1.p"), ("SYN", "SYN952+1.p"), ("SYN", "SYN958+1.p")]
-  let fofFiles = [("SYN", "SYN007+1.014.p")]
+  -- let fofFiles = [("SYN", "SYN007+1.014.p")]
   
   -- Found 376 FOF files (with '+' in filename)！！
   putStrLn $ "Found " ++ show (length fofFiles) ++ " FOF files (with '+' in filename)"
+  putStrLn "Files:"
+  mapM_ (\(subDir, filename) -> putStrLn $ "  " ++ subDir ++ "/" ++ filename) fofFiles
   putStrLn ""
   
   -- 各ファイルを処理して結果を集計
