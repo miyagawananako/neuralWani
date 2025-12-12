@@ -229,14 +229,14 @@ main = do
 
   -- データセットの分割
   splitedData <- splitByLabel (zip constructorData ruleList)
-  (trainData, validData, testData) <- smoothData splitedData (Just 10)
+  (trainData, validData, testData) <- smoothData splitedData (Just 450)
 
   -- 訓練データの規則出現回数をカウントして表示
   let countedTrainRules = countRule $ map snd trainData
   print $ "countedRules (training data) " ++ show countedTrainRules
 
   -- ハイパーパラメータの設定
-  let device = Device CPU 0                 -- 使用するデバイス（CPU/GPU）
+  let device = Device CUDA 0                 -- 使用するデバイス（CPU/GPU）
       biDirectional = bi                    -- 双方向LSTMを使用するかどうか
       embDim = emb                          -- 埋め込み層の次元数
       numOfLayers = l                       -- LSTMの層数
