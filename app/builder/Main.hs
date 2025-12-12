@@ -11,10 +11,10 @@ import Torch.Device (Device(..),DeviceType(..))
 import qualified SplitJudgment as S
 
 -- 本来lightblue内に置くパス（パスは例）
-modelPath :: FilePath
-modelPath = "trainedDataWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-11-20_02-08-09/seq-class.model"
-frequentWordsPath :: FilePath
-frequentWordsPath = "trainedDataWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-11-20_02-08-09/frequentWords.bin"
+-- modelPath :: FilePath
+-- modelPath = "trainedDataWithoutF/typeEo_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-10_20-46-49/seq-class.model"
+-- frequentWordsPath :: FilePath
+-- frequentWordsPath = "trainedDataWithoutF/typeEo_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-10_20-46-49/frequentWords.bin"
 
 -- lightblue内に置く関数
 -- getPrioritizedRules :: WB.Goal -> [WB.Rule] -> [WB.Rule] を作成して返す関数

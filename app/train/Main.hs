@@ -39,10 +39,6 @@ import ML.Exp.Classification (showClassificationReport) --nlp-tools
 import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment, DelimiterToken(..))
 import Forward (HypParams(..), Params(..), forward)
 
--- | 証明探索結果のファイルパス
-proofSearchResultFilePath :: FilePath
-proofSearchResultFilePath = "data/proofSearchResult"
-
 -- | すべてのラベル（DTT規則）のリスト
 allLabels :: [QT.DTTrule]
 allLabels = [minBound..]
@@ -50,6 +46,12 @@ allLabels = [minBound..]
 -- | すべてのトークンのリスト
 allTokens :: [Token]
 allTokens = [minBound..]
+
+backwardRules :: [QT.DTTrule]
+backwardRules = [QT.PiF, QT.SigmaF, QT.IqF, QT.Var, QT.Con, QT.PiI, QT.SigmaI, QT.PiE, QT.TopI, QT.DisjI, QT.DisjE, QT.DisjF, QT.DNE, QT.EFQ]
+
+formationRules :: [QT.DTTrule]
+formationRules = [QT.TypeF, QT.PiF, QT.SigmaF, QT.DisjF, QT.BotF, QT.TopF, QT.EnumF, QT.IqF, QT.NatF]
 
 -- | 規則の出現回数をカウントする関数
 -- 各規則の出現頻度を計算し、頻度の降順でソートして返します
@@ -206,12 +208,16 @@ main = do
 
   -- 形成則を含めるかどうか
   let isIncludeF = False
+      isOnlyBackwardRules = True
 
   -- データセットの前処理
   let originalDataset = concat jsemDatasets
+      backwardDataset = if isOnlyBackwardRules
+                then filter (\(_, rule) -> elem rule backwardRules) originalDataset
+                else originalDataset
       dataset = if isIncludeF
-                then originalDataset
-                else filter (\(_, rule) -> (rule /= QT.TypeF) && (rule /= QT.PiF) && (rule /= QT.SigmaF) && (rule /= QT.DisjF) && (rule /= QT.BotF) && (rule /= QT.TopF) && (rule /= QT.EnumF) && (rule /= QT.IqF) && (rule /= QT.NatF)) originalDataset
+                then backwardDataset
+                else filter (\(_, rule) -> rule `notElem` formationRules) backwardDataset
       wordList = concatMap (getConstantSymbolsFromJudgment . fst) dataset
       frequentWords = getFrequentConstantSymbols wordList
       constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords delimiterToken) dataset
@@ -266,9 +272,12 @@ main = do
   -- 現在時刻の取得（フォルダ名に使用）
   currentTime <- getZonedTime
   let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
-      newFolderPath = if isIncludeF
-                     then "trainedData/type" ++ show delimiterToken ++ "_bi" ++ show biDirectional ++ "_s" ++ show numberOfBatch ++ "_lr" ++ show (asValue learningRate :: Float) ++  "_i" ++ show embDim ++ "_h" ++ show hiddenSize ++ "_layer" ++ show numOfLayers ++ "/" ++ timeString
-                     else "trainedDataWithoutF/type" ++ show delimiterToken ++ "_bi" ++ show biDirectional ++ "_s" ++ show numberOfBatch ++ "_lr" ++ show (asValue learningRate :: Float) ++  "_i" ++ show embDim ++ "_h" ++ show hiddenSize ++ "_layer" ++ show numOfLayers ++ "/" ++ timeString
+      baseFolderName = case (isIncludeF, isOnlyBackwardRules) of
+                        (True, True)   -> "trainedDataBackward"
+                        (True, False)  -> "trainedData"
+                        (False, True)  -> "trainedDataBackwardWithoutF"
+                        (False, False) -> "trainedDataWithoutF"
+      newFolderPath = baseFolderName ++ "/type" ++ show delimiterToken ++ "_bi" ++ show biDirectional ++ "_s" ++ show numberOfBatch ++ "_lr" ++ show (asValue learningRate :: Float) ++  "_i" ++ show embDim ++ "_h" ++ show hiddenSize ++ "_layer" ++ show numOfLayers ++ "/" ++ timeString
 
   createDirectoryIfMissing True newFolderPath
 

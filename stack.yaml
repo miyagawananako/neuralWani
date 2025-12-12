@@ -15,7 +15,7 @@ extra-deps:
   - git: http://github.com/DaisukeBekki/JSeM.git
     commit: c2cd39168e267007b4690dbf625329bac57a8185
   - git: git@github.com:miyagawananako/lightblue.git
-    commit: ec790e0007763c23e28acab017f8530b36b8b477
+    commit: 7736e9d9432a4b8f827e9599d468cb6b32f65f53
   - git: git@github.com:hinarid/waniTest.git
     commit: 6962393b76b4ebfa8fc5b1018678d2abfcf206e1
   - git: https://github.com/morning85/parserModules.git
