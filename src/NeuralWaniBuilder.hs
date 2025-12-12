@@ -13,6 +13,7 @@ import qualified Data.Text.Lazy as T
 import qualified Data.ByteString as B --bytestring
 import Data.Store (decode)
 import Data.Maybe (catMaybes)
+import Data.List (nub)
 
 import Torch.Serialize (loadParams)
 import Torch.NN (sample)
@@ -64,7 +65,7 @@ neuralWaniBuilder = do
         let predictedRules = F.predictRule device model judgment bi_directional frequentWords delimiterToken
             predictedRuleLabelsMaybe = map (\rule -> BR.dttruleToRuleLabel rule) predictedRules
             predictedRuleLabels = catMaybes predictedRuleLabelsMaybe
-            filteredRuleLabels = filter (`elem` availableRuleLabels) predictedRuleLabels
+            filteredRuleLabels = nub $ filter (`elem` availableRuleLabels) predictedRuleLabels
         in filteredRuleLabels
       Nothing -> availableRuleLabels
 
