@@ -26,6 +26,7 @@ import qualified Interface.Text as IText
 
 import TPTP.Convert (processFile)
 import qualified TPTPInfo as TI
+import NeuralWaniBuilder (neuralWaniBuilder)
 
 data EvalResult = EvalResult
   { erFilename       :: T.Text
@@ -203,6 +204,8 @@ processOneFile config sessionId (subDir, filename) = do
                 QT.maxDepth = Just (cfgMaxDepth config),
                 QT.maxTime = Just (cfgMaxTime config)
                 }
+
+      -- getPrioritizedRules <- neuralWaniBuilder
       -- NeuralWani用の設定（将来的にニューラルネットワークを有効化）
       let neuralSetting = QT.defaultProofSearchSetting {
                 QT.maxDepth = Just (cfgMaxDepth config),

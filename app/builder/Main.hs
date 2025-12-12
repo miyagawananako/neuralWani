@@ -1,61 +1,34 @@
-import qualified DTS.Prover.Wani.WaniBase as WB
 import qualified DTS.Prover.Wani.BackwardRules as BR
-import qualified Data.ByteString as B --bytestring
-import Data.Store (decode)
-import Data.Maybe (catMaybes)
-import Torch.Serialize (loadParams)
-import Torch.NN (sample)
-import qualified Forward as F
-import qualified DTS.QueryTypes as QT
-import Torch.Device (Device(..),DeviceType(..))
-import qualified SplitJudgment as S
+import qualified DTS.Prover.Wani.WaniBase as WB
+import qualified DTS.Prover.Wani.Arrowterm as A
+import qualified Data.Text.Lazy as T
 
--- 本来lightblue内に置くパス（パスは例）
--- modelPath :: FilePath
--- modelPath = "trainedDataWithoutF/typeEo_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-10_20-46-49/seq-class.model"
--- frequentWordsPath :: FilePath
--- frequentWordsPath = "trainedDataWithoutF/typeEo_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-10_20-46-49/frequentWords.bin"
+import NeuralWaniBuilder (neuralWaniBuilder)
 
--- lightblue内に置く関数
--- getPrioritizedRules :: WB.Goal -> [WB.Rule] -> [WB.Rule] を作成して返す関数
--- dttRuleFromWaniBaseRuleがIOである以上、neuralWaniBuilderもIOである必要があるのが難しい点
--- neuralWaniBuilder :: IO (WB.Goal -> [WB.Rule] -> [WB.Rule])
--- neuralWaniBuilder = do
---   let device = Device CPU 0
---       -- ハイパーパラメータの設定（trainedDataのパス名から推測: i256_h256_layer1）
---       hyperParams = F.HypParams
---         { F.dev = device
---         , F.bi_directional = False
---         , F.emb_dim = 256
---         , F.has_bias = True
---         , F.proj_size = Nothing
---         , F.vocab_size = length (enumFrom minBound :: [S.Token])
---         , F.num_layers = 1
-  --       , F.hidden_size = 256
-  --       , F.num_rules = length (enumFrom minBound :: [QT.DTTrule])
-  --       }
-  -- -- 空のモデルを初期化してからパラメータをロード
-  -- emptyModel <- sample hyperParams
-  -- model <- loadParams emptyModel modelPath
-  -- frequentWordsEither <- decode <$> B.readFile frequentWordsPath
-  -- frequentWords <- case frequentWordsEither of
-  --   Left err -> error $ "Failed to decode frequentWords: " ++ show err
-  --   Right words -> return words
-  -- let bi_directional = False
-  -- let delimiterToken = S.Unused
-  -- return $ \goal availableRules -> do
-  --   let maybeJudgment = WB.goal2NeuralWaniJudgement goal  -- Maybe DdB.Judgmentを受け取る
-  --   case maybeJudgment of
-  --     Just judgment -> do
-  --       let predictedRules = F.predictRule device model judgment bi_directional frequentWords delimiterToken  -- [QT.DTTrule]を受け取る
-  --       let predictedWBRulesMaybe = map (\rule -> BR.waniBaseRuleFromDTTrule rule) predictedRules  -- waniBaseRuleFromDTTrule :: QT.DTTrule -> Maybe WB.Rule
-  --       let predictedWBRules = catMaybes predictedWBRulesMaybe
-  --       return $ filter (\rule -> elem rule availableRules) predictedWBRules
-  --     Nothing -> do
-  --       return availableRules
+goalExample :: WB.Goal
+goalExample = WB.Goal
+  [ (T.pack "entity", A.aType)
+  , (T.pack "man", A.Arrow [A.aCon (T.pack "entity")] A.aType)
+  ]                                             -- sig環境
+  []                                            -- var環境：空
+  Nothing                                       -- 推論モード
+  [A.ArrowSigma' 
+    [A.aCon (T.pack "entity")]                           -- x : entity
+    (A.ArrowApp (A.aCon (T.pack "man")) (A.aVar 0))     -- man(x)
+  ]
 
+-- deduce'関数での規則の順番
+--  [BR.PiForm]
+--                           ++ (if arrowType /= (A.Conclusion DdB.Kind) then [BR.SigmaForm,BR.EqForm,BR.Membership,BR.AskOracle,BR.PiIntro,BR.SigmaIntro,BR.PiElim,BR.TopIntro,BR.DisjIntro,BR.DisjElim,BR.DisjForm] else [])
+--                           ++ [BR.Dne | arrowType /= A.Conclusion DdB.Bot && WB.mode setting == WB.WithDNE && (arrowType /= (A.Conclusion DdB.Kind))]
+--                           ++ [BR.Efq | arrowType /= A.Conclusion DdB.Bot && WB.mode setting == WB.WithEFQ && (arrowType /= (A.Conclusion DdB.Kind))]
+--                         )
+
+availableRules :: [BR.RuleLabel]
+availableRules = [BR.Membership,BR.AskOracle,BR.PiIntro,BR.SigmaIntro,BR.PiElim,BR.TopIntro,BR.DisjIntro,BR.DisjElim,BR.Dne,BR.Efq]
 
 main :: IO ()
 main = do
-  -- getPrioritizedRules <- neuralWaniBuilder  -- deduce'関数での使用例
-  print "neuralWaniBuilder is not implemented"
+  getPrioritizedRules <- neuralWaniBuilder
+  let prioritizedRules = getPrioritizedRules goalExample availableRules
+  print $ "prioritizedRules " ++ show prioritizedRules
