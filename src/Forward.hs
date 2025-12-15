@@ -5,7 +5,6 @@
 module Forward where
 
 import GHC.Generics                   --base
-import qualified Data.Text.Lazy as TL --text
 import Data.Ord (Down(..))
 import qualified Data.List as List
 import qualified DTS.QueryTypes as QT
@@ -23,7 +22,7 @@ import Torch.Layer.Linear (LinearHypParams(..),LinearParams,linearLayer)
 import Torch.Layer.LSTM   (LstmHypParams(..),LstmParams,lstmLayers)
 
 --プロジェクト固有のモジュール
-import SplitJudgment (Token(..), splitJudgment, DelimiterToken(..))
+import SplitJudgment (Token(..), splitJudgment, DelimiterToken(..), WordMap)
 
 -- | ニューラルネットワークのハイパーパラメータを定義するデータ型
 data HypParams = HypParams {
@@ -123,15 +122,15 @@ extractLastOutput tensor bi_directional =
 -- * params - モデルのパラメータ
 -- * judgment - 予測対象のJudgment
 -- * bi_directional - 双方向LSTMを使用するかどうか
--- * frequentWords - 頻出語のリスト（splitJudgmentに必要）
+-- * wordMap - 頻出語からトークンへのマッピング（buildWordMapで事前構築）
 -- * delimiterToken - 区切り用トークンの種類（splitJudgmentに必要）
 --
 -- 戻り値：
 -- * 予測された規則のリスト（確率の高い順にソート済み、BR.RuleLabel）
-predictRule :: Device -> Params -> U.Judgment -> Bool -> [TL.Text] -> DelimiterToken -> [BR.RuleLabel]
-predictRule device params judgment bi_directional frequentWords delimiterToken =
+predictRule :: Device -> Params -> U.Judgment -> Bool -> WordMap -> DelimiterToken -> [BR.RuleLabel]
+predictRule device params judgment bi_directional wordMap delimiterToken =
   -- Judgmentをトークン列に変換
-  let tokens = splitJudgment judgment frequentWords delimiterToken
+  let tokens = splitJudgment judgment wordMap delimiterToken
       -- forward関数を呼び出して予測確率テンソルを取得
       output' = forward device params tokens bi_directional
       -- テンソルから値を取得（形状は[1, num_rules]）
