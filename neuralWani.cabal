@@ -70,7 +70,6 @@ library
     , store
     , text
     , time
-    , waniTEST
   default-language: Haskell2010
 
 executable builder-exe
@@ -107,7 +106,6 @@ executable builder-exe
     , store
     , text
     , time
-    , waniTEST
   default-language: Haskell2010
 
 executable evaluate-exe
@@ -144,44 +142,6 @@ executable evaluate-exe
     , store
     , text
     , time
-    , waniTEST
-  default-language: Haskell2010
-
-executable preprocess-exe
-  main-is: Main.hs
-  other-modules:
-      Paths_neuralWani
-  autogen-modules:
-      Paths_neuralWani
-  hs-source-dirs:
-      app/preprocess
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      array >=0.5.3.0
-    , base >=4.7 && <5
-    , bytestring
-    , cereal-text
-    , containers
-    , data-default
-    , deepseq
-    , directory
-    , filepath
-    , hasktorch >=0.2
-    , hasktorch-tools
-    , jsem >=1.1
-    , lightblue >=0.3
-    , list-t
-    , mtl >=2.2.2
-    , neuralWani
-    , nlp-tools
-    , parserModules
-    , random
-    , random-shuffle
-    , split
-    , store
-    , text
-    , time
-    , waniTEST
   default-language: Haskell2010
 
 executable train-exe
@@ -218,7 +178,6 @@ executable train-exe
     , store
     , text
     , time
-    , waniTEST
   default-language: Haskell2010
 
 test-suite test
@@ -256,5 +215,4 @@ test-suite test
     , store
     , text
     , time
-    , waniTEST
   default-language: Haskell2010
