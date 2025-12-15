@@ -43,6 +43,7 @@ dependencies:
   - data-default
   - jsem >= 1.1
   - deepseq
+  - dlist
 
 ghc-options:
   - -Wall
