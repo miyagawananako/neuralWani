@@ -10,6 +10,7 @@ import Data.Ord (Down(..))
 import qualified Data.List as List
 import qualified DTS.QueryTypes as QT
 import qualified DTS.DTTdeBruijn as U
+import qualified DTS.Prover.Wani.BackwardRules as BR
 
 --hasktorch関連のインポート
 import Torch.Tensor       (Tensor(..),asValue,reshape, shape, asTensor, sliceDim, toDevice)
@@ -126,8 +127,8 @@ extractLastOutput tensor bi_directional =
 -- * delimiterToken - 区切り用トークンの種類（splitJudgmentに必要）
 --
 -- 戻り値：
--- * 予測された規則のリスト（確率の高い順にソート済み）
-predictRule :: Device -> Params -> U.Judgment -> Bool -> [TL.Text] -> DelimiterToken -> [QT.DTTrule]
+-- * 予測された規則のリスト（確率の高い順にソート済み、BR.RuleLabel）
+predictRule :: Device -> Params -> U.Judgment -> Bool -> [TL.Text] -> DelimiterToken -> [BR.RuleLabel]
 predictRule device params judgment bi_directional frequentWords delimiterToken =
   -- Judgmentをトークン列に変換
   let tokens = splitJudgment judgment frequentWords delimiterToken
@@ -141,7 +142,7 @@ predictRule device params judgment bi_directional frequentWords delimiterToken =
       -- インデックスと確率をペアにして、確率の降順でソート
       indexedProbs = zip [0..] probs
       sortedIndexedProbs = List.sortOn (Down . snd) indexedProbs
-      -- インデックスを規則に変換
-      predictedRules = map (\(idx, _) -> toEnum idx :: QT.DTTrule) sortedIndexedProbs
+      -- インデックスを規則に変換（BR.RuleLabelとして）
+      predictedRules = map (\(idx, _) -> toEnum idx :: BR.RuleLabel) sortedIndexedProbs
   in predictedRules
 

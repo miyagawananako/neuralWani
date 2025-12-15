@@ -9,10 +9,12 @@ module SplitJudgment
     , Token(..)
     , splitJudgment
     , DelimiterToken(..)
+    , dttruleToRuleLabel
     ) where
 
 import qualified DTS.QueryTypes as QT
 import qualified DTS.DTTdeBruijn as U
+import qualified DTS.Prover.Wani.BackwardRules as BR
 import qualified Data.ByteString as B --bytestring
 import qualified Data.Text.Lazy as T  --text
 import Data.Store (decode)
@@ -223,3 +225,8 @@ splitJudgment judgment frequentWords delimiterToken =
     else  wrapSignature (splitSignature (U.signtr judgment) frequentWords delimiterToken) delimiterToken ++
           wrapContext (splitPreterms (U.contxt judgment) frequentWords delimiterToken) delimiterToken ++
           wrapTyp (splitPreterm (U.typ judgment) frequentWords delimiterToken) delimiterToken
+
+-- | DTTruleからRuleLabelへの変換関数
+-- lightblueのBR.dttruleToRuleLabelをエクスポート
+dttruleToRuleLabel :: QT.DTTrule -> Maybe BR.RuleLabel
+dttruleToRuleLabel = BR.dttruleToRuleLabel

@@ -7,12 +7,10 @@ module NeuralWaniBuilder
 import qualified DTS.Prover.Wani.WaniBase as WB
 import qualified DTS.Prover.Wani.BackwardRules as BR
 import qualified DTS.Prover.Wani.Arrowterm as A
-import qualified DTS.QueryTypes as QT
 
 import qualified Data.Text.Lazy as T
 import qualified Data.ByteString as B --bytestring
 import Data.Store (decode)
-import Data.Maybe (catMaybes)
 import Data.List (nub)
 
 import Torch.Serialize (loadParams)
@@ -30,9 +28,9 @@ import qualified SplitJudgment as S
 
 -- CPU用のパス
 modelPath :: FilePath
-modelPath = "trainedDataBackwardWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-12_06-53-21/seq-class.model"
+modelPath = "trainedDataBackwardWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-12_15-39-57/seq-class.model"
 frequentWordsPath :: FilePath
-frequentWordsPath = "trainedDataBackwardWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-12_06-53-21/frequentWords.bin"
+frequentWordsPath = "trainedDataBackwardWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-12_15-39-57/frequentWords.bin"
 
 
 -- lightblue内に置く関数
@@ -48,7 +46,7 @@ neuralWaniBuilder = do
         , F.vocab_size = length (enumFrom minBound :: [S.Token])
         , F.num_layers = 1
         , F.hidden_size = 256
-        , F.num_rules = length (enumFrom minBound :: [QT.DTTrule])
+        , F.num_rules = length (enumFrom minBound :: [BR.RuleLabel])
         }
       bi_directional = False
       delimiterToken = S.Unused
@@ -62,9 +60,7 @@ neuralWaniBuilder = do
     let maybeJudgment = WB.goal2NeuralWaniJudgement goal
     in case maybeJudgment of
       Just judgment ->
-        let predictedRules = F.predictRule device model judgment bi_directional frequentWords delimiterToken
-            predictedRuleLabelsMaybe = map (\rule -> BR.dttruleToRuleLabel rule) predictedRules
-            predictedRuleLabels = catMaybes predictedRuleLabelsMaybe
+        let predictedRuleLabels = F.predictRule device model judgment bi_directional frequentWords delimiterToken
             filteredRuleLabels = nub $ filter (`elem` availableRuleLabels) predictedRuleLabels
         in filteredRuleLabels
       Nothing -> availableRuleLabels
