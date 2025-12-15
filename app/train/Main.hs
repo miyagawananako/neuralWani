@@ -38,7 +38,7 @@ import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
 
 --プロジェクト固有のモジュール
-import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment, DelimiterToken(..), dttruleToRuleLabel)
+import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment, DelimiterToken(..), dttruleToRuleLabel, buildWordMap)
 import Forward (HypParams(..), Params(..), forward)
 
 -- | すべてのラベル（RuleLabel）のリスト
@@ -228,7 +228,9 @@ main = do
                     Nothing -> Nothing) filteredDataset
       wordList = concatMap (getConstantSymbolsFromJudgment . fst) dataset
       frequentWords = getFrequentConstantSymbols wordList
-      constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords delimiterToken) dataset
+      -- 頻出語リストをMapに事前変換（高速化のため）
+      wordMap = buildWordMap frequentWords
+      constructorData = map (\(judgment, _) -> splitJudgment judgment wordMap delimiterToken) dataset
       ruleList = map snd dataset
 
   -- 規則の出現回数をカウントして表示
