@@ -22,7 +22,6 @@ description: Please see the README on GitHub at https://github.com/miyagawananak
 dependencies:
   - base >= 4.7 && < 5
   - lightblue >= 0.3
-  - waniTEST
   - store
   - bytestring
   - list-t
@@ -66,16 +65,6 @@ executables:
   train-exe:
     main: Main.hs
     source-dirs: app/train
-    ghc-options:
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
-    dependencies:
-      - neuralWani
-
-  preprocess-exe:
-    main: Main.hs
-    source-dirs: app/preprocess
     ghc-options:
       - -threaded
       - -rtsopts

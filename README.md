@@ -36,17 +36,7 @@ Replace `<command>` with the stack commands described in each section below.
 
 ---
 
-### 1. Preprocessing (`preprocess-exe`)
-
-Preprocesses proof search results and saves them as binary files for training.
-
-```bash
-stack run preprocess-exe
-```
-
----
-
-### 2. Training (`train-exe`)
+### 1. Training (`train-exe`)
 
 Trains the neural network model.
 
@@ -85,7 +75,7 @@ stack run train-exe False 256 256 1 False 5e-4 32 10 Unused
 
 ---
 
-### 3. Evaluation (`evaluate-exe`)
+### 2. Evaluation (`evaluate-exe`)
 
 Evaluates the prover on TPTP files, comparing Normal and NeuralWani provers.
 
@@ -131,11 +121,9 @@ stack run evaluate-exe 10000 12 efq
 
 ---
 
-### 4. Builder (`builder-exe`)
+### 3. Builder (`builder-exe`)
 
 Builds the prioritized rules function using a trained model.
-
-> **Note:** This feature is currently under development.
 
 ```bash
 stack run builder-exe
