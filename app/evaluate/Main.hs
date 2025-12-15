@@ -107,8 +107,8 @@ main = do
   -- fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
   
   -- let fofFiles = sort fofFilesWithSubDir
-  -- let fofFiles = [("SYN", "SYN950+1.p"), ("SYN", "SYN952+1.p"), ("SYN", "SYN958+1.p")]
-  let fofFiles = [("SYN", "SYN007+1.014.p")]
+  let fofFiles = [("SYN", "SYN950+1.p"), ("SYN", "SYN952+1.p"), ("SYN", "SYN958+1.p")]
+  -- let fofFiles = [("SYN", "SYN007+1.014.p")]
   
   -- Found 376 FOF files (with '+' in filename)！！
   putStrLn $ "Found " ++ show (length fofFiles) ++ " FOF files (with '+' in filename)"
@@ -295,16 +295,21 @@ processOneFile config sessionId (subDir, filename) = do
       putStrLn "=========================================="
       putStrLn ""
       
-      return $ Right EvalResult
-        { erFilename     = filenameText
-        , erExpected     = expectedResult
-        , erNormalResult = normalResult
-        , erNormalTime   = normalTime
-        , erNeuralResult = neuralResult
-        , erNeuralTime   = neuralTime
-        , erNormalMatch  = normalMatch
-        , erNeuralMatch  = neuralMatch
-        }
+      let evalResult = EvalResult
+            { erFilename     = filenameText
+            , erExpected     = expectedResult
+            , erNormalResult = normalResult
+            , erNormalTime   = normalTime
+            , erNeuralResult = neuralResult
+            , erNeuralTime   = neuralTime
+            , erNormalMatch  = normalMatch
+            , erNeuralMatch  = neuralMatch
+            }
+      
+      -- 各ファイル処理完了後にTeX形式で比較データを出力
+      writePerFileTexReport config sessionId baseName evalResult
+      
+      return $ Right evalResult
 
 -- | 期待値との比較結果を表示する
 printMatchResult :: Bool -> Maybe TI.Result -> TI.Result -> IO ()
@@ -569,6 +574,97 @@ escapeTeX = T.concatMap escapeChar
     escapeChar '^' = "\\^{}"
     escapeChar '~' = "\\~{}"
     escapeChar c   = T.singleton c
+
+-- | 各ファイル処理完了後にTeX形式で比較データを出力
+writePerFileTexReport :: ProverConfig -> String -> String -> EvalResult -> IO ()
+writePerFileTexReport config sessionId baseName result = do
+  -- 出力ディレクトリを作成
+  let perFileDir = "evaluateResult" </> ("perFile_" ++ sessionId)
+  createDirectoryIfMissing True perFileDir
+  
+  -- ファイル名を決定
+  let texFilename = perFileDir </> (baseName ++ "_comparison.tex")
+  
+  -- TeXファイルを書き込み
+  T.writeFile texFilename $ generatePerFileTexContent config sessionId baseName result
+  
+  putStrLn $ "  Per-file TeX report: " ++ texFilename
+
+-- | 各ファイル用のTeXコンテンツを生成
+generatePerFileTexContent :: ProverConfig -> String -> String -> EvalResult -> T.Text
+generatePerFileTexContent config sessionId baseName result = T.unlines
+  [ "% Auto-generated comparison report for: " <> escapeTeX (T.pack baseName)
+  , "% Session: " <> T.pack sessionId
+  , ""
+  , "\\documentclass[a4paper,10pt]{article}"
+  , "\\usepackage[utf8]{inputenc}"
+  , "\\usepackage{booktabs}"
+  , "\\usepackage{geometry}"
+  , "\\usepackage{xcolor}"
+  , "\\usepackage{colortbl}"
+  , "\\geometry{margin=2cm}"
+  , ""
+  , "\\definecolor{matchcolor}{RGB}{200,255,200}"
+  , "\\definecolor{mismatchcolor}{RGB}{255,200,200}"
+  , "\\definecolor{fastercolor}{RGB}{200,200,255}"
+  , ""
+  , "\\title{Wani vs NeuralWani Comparison Report}"
+  , "\\author{File: " <> escapeTeX (erFilename result) <> "}"
+  , "\\date{Session: \\texttt{" <> escapeTeX (T.pack sessionId) <> "}}"
+  , ""
+  , "\\begin{document}"
+  , "\\maketitle"
+  , ""
+  , "\\section{Configuration}"
+  , "\\begin{itemize}"
+  , "\\item maxDepth: " <> T.pack (show (cfgMaxDepth config))
+  , "\\item maxTime: " <> T.pack (show (cfgMaxTime config)) <> " ms"
+  , "\\item logicSystem: \\textbf{" <> T.pack (logicSystemToStr (cfgLogicSystem config)) <> "}"
+  , "\\end{itemize}"
+  , ""
+  , "\\section{Comparison Results}"
+  , ""
+  , "\\begin{tabular}{lcc}"
+  , "\\toprule"
+  , "\\textbf{Metric} & \\textbf{Wani (Normal)} & \\textbf{NeuralWani} \\\\"
+  , "\\midrule"
+  , "Result & " <> T.pack (show (erNormalResult result)) <> " & " <> T.pack (show (erNeuralResult result)) <> " \\\\"
+  , "Time & " <> formatTimeShort (erNormalTime result) <> " & " <> formatTimeShort (erNeuralTime result) <> " \\\\"
+  , "Match Expected & " <> matchSymbolTex (erNormalMatch result) <> " & " <> matchSymbolTex (erNeuralMatch result) <> " \\\\"
+  , "\\bottomrule"
+  , "\\end{tabular}"
+  , ""
+  , "\\section{Summary}"
+  , ""
+  , "\\begin{itemize}"
+  , "\\item Expected Result: " <> maybe "N/A" (T.pack . show) (erExpected result)
+  , "\\item Speedup (Normal / Neural): " <> T.pack (printf "%.2fx" speedup)
+  , "\\item " <> speedupComment
+  , "\\end{itemize}"
+  , ""
+  , "\\section{Proof Tree Locations}"
+  , "\\begin{itemize}"
+  , "\\item Wani (Normal): \\texttt{evaluateResult/proofTrees\\_" <> escapeTeX (T.pack sessionId) <> "/normal/}"
+  , "\\item NeuralWani: \\texttt{evaluateResult/proofTrees\\_" <> escapeTeX (T.pack sessionId) <> "/neural/}"
+  , "\\end{itemize}"
+  , ""
+  , "\\end{document}"
+  ]
+  where
+    speedup :: Double
+    speedup = if erNeuralTime result > 0 
+              then realToFrac (erNormalTime result) / realToFrac (erNeuralTime result)
+              else 0
+    
+    speedupComment :: T.Text
+    speedupComment
+      | speedup > 1.1  = "NeuralWani is \\textbf{faster}"
+      | speedup < 0.9  = "Wani (Normal) is \\textbf{faster}"
+      | otherwise      = "Performance is \\textbf{similar}"
+    
+    matchSymbolTex :: Bool -> T.Text
+    matchSymbolTex True  = "\\cellcolor{matchcolor}$\\checkmark$"
+    matchSymbolTex False = "\\cellcolor{mismatchcolor}$\\times$"
 
 -- ============================================
 -- 証明木出力関連の関数
