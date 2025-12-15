@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.38.2.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -43,9 +43,9 @@ library
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
-  build-tool-depends:
-      alex:alex
-    , happy:happy
+  build-tools:
+      alex
+    , happy
   build-depends:
       array >=0.5.3.0
     , base >=4.7 && <5
@@ -55,6 +55,7 @@ library
     , data-default
     , deepseq
     , directory
+    , dlist
     , filepath
     , hasktorch >=0.2
     , hasktorch-tools
@@ -90,6 +91,7 @@ executable builder-exe
     , data-default
     , deepseq
     , directory
+    , dlist
     , filepath
     , hasktorch >=0.2
     , hasktorch-tools
@@ -126,6 +128,7 @@ executable evaluate-exe
     , data-default
     , deepseq
     , directory
+    , dlist
     , filepath
     , hasktorch >=0.2
     , hasktorch-tools
@@ -162,6 +165,7 @@ executable train-exe
     , data-default
     , deepseq
     , directory
+    , dlist
     , filepath
     , hasktorch >=0.2
     , hasktorch-tools
@@ -199,6 +203,7 @@ test-suite test
     , data-default
     , deepseq
     , directory
+    , dlist
     , filepath
     , hasktorch >=0.2
     , hasktorch-tools
