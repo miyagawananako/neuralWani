@@ -1,90 +1,142 @@
 # NeuralWani
 
-Neural Wani は、ニューラルネットワークを使用して Dependent Type Theory (DTT)の証明探索を補助するシステムです。
+NeuralWani is a system that assists proof search in Dependent Type Theory (DTT) using neural networks.
 
-## インストール方法
+## Installation
 
-1.  clone this repository
+1. Clone this repository
 
-2.  install stack
+2. Install Stack
 
-    https://docs.haskellstack.org/en/stable/install_and_upgrade/#manual-download
+   https://docs.haskellstack.org/en/stable/install_and_upgrade/#manual-download
 
-3.  install hasktorch
+3. Install hasktorch
 
-    https://github.com/hasktorch/hasktorch
+   https://github.com/hasktorch/hasktorch
 
-    インストール後に、neuralWani レポジトリの stack.yaml の hasktorch のパスを自身の環境に書き換える。
+   After installation, update the hasktorch path in `stack.yaml` to match your environment.
 
-## 使用方法
+## Usage
 
-#### Docker の場合
+### Starting Docker Container
 
-`$ docker compose up -d`でコンテナを立ち上げる。
+Start the container:
 
-### 学習の前処理
+```bash
+docker compose up -d
+```
 
-#### Docker の場合
+All commands below should be executed inside the Docker container. Enter the container with:
 
-1. `$ docker compose exec hasktorch /bin/bash -c "cd /home/ubuntu/neuralWani && stack run preprocess-exe`を実行して前処理を行う。
+```bash
+docker compose exec hasktorch /bin/bash -c "cd /home/ubuntu/neuralWani && <command>"
+```
 
-#### GPU マシンの場合
+Replace `<command>` with the stack commands described in each section below.
 
-1. `$ stack run preprocess-exe`を実行して前処理を行う。
+---
 
-### 学習
+### 1. Preprocessing (`preprocess-exe`)
 
-#### Docker の場合
+Preprocesses proof search results and saves them as binary files for training.
 
-1. `$ docker compose exec hasktorch /bin/bash -c "cd /home/ubuntu/neuralWani && stack run train-exe <bi> <emb> <h> <l> <bias> <lr> <steps> <iter> <delimiterToken>"`を実行して学習する。
+```bash
+stack run preprocess-exe
+```
 
-#### GPU マシンの場合
+---
 
-1. `$ stack run train-exe <bi> <emb> <h> <l> <bias> <lr> <steps> <iter> <delimiterToken>"`を実行して学習する。
+### 2. Training (`train-exe`)
 
-### 学習パラメータの説明
+Trains the neural network model.
 
-`train-exe`コマンドは以下の引数を取ります：
+```bash
+stack run train-exe <bi> <emb> <h> <l> <bias> <lr> <steps> <iter> <delimiterToken>
+```
 
-1. `bi` (Bool): 双方向 LSTM を使用するかどうか
+#### Parameters
 
-   - `False`: 単方向 LSTM
-   - `True`: 双方向 LSTM
+| Parameter        | Type           | Description                                | Example  |
+| ---------------- | -------------- | ------------------------------------------ | -------- |
+| `bi`             | Bool           | Use bidirectional LSTM (`True` or `False`) | `False`  |
+| `emb`            | Int            | Embedding dimension                        | `256`    |
+| `h`              | Int            | Hidden layer size                          | `256`    |
+| `l`              | Int            | Number of LSTM layers                      | `1`      |
+| `bias`           | Bool           | Use bias (`True` or `False`)               | `False`  |
+| `lr`             | Float          | Learning rate                              | `5e-4`   |
+| `steps`          | Int            | Batch size (number of steps)               | `32`     |
+| `iter`           | Int            | Number of epochs                           | `10`     |
+| `delimiterToken` | DelimiterToken | Type of delimiter token                    | `Unused` |
 
-2. `emb` (Int): 埋め込み層の次元数
+#### DelimiterToken Types
 
-   - 例: `256`
+| Type     | Description                               |
+| -------- | ----------------------------------------- |
+| `Paren`  | Wraps tokens with parentheses `(` and `)` |
+| `Sep`    | Appends a separator token at the end      |
+| `Eo`     | Appends an end-of token at the end        |
+| `Unused` | Uses an unused token                      |
 
-3. `h` (Int): 隠れ層のサイズ
-
-   - 例: `256`
-
-4. `l` (Int): LSTM の層数
-
-   - 例: `1`
-
-5. `bias` (Bool): バイアスを使用するかどうか
-
-   - `False`: バイアスなし
-   - `True`: バイアスあり
-
-6. `lr` (Float): 学習率
-
-   - 例: `5e-4`
-
-7. `steps` (Int): ステップ数
-
-   - 例: `32`
-
-8. `iter` (Int): エポック数
-
-   - 例: `10`
-
-9. `delimiterToken` (DelimiterToken): デリミタトークンの種類
-   - 例: `Unused`
-
-#### 使用例
+#### Example
 
 ```bash
 stack run train-exe False 256 256 1 False 5e-4 32 10 Unused
+```
+
+---
+
+### 3. Evaluation (`evaluate-exe`)
+
+Evaluates the prover on TPTP files, comparing Normal and NeuralWani provers.
+
+> **Note:** This feature is currently under development. The NeuralWani prover is not yet integrated.
+
+```bash
+stack run evaluate-exe [maxTime] [maxDepth] [logicSystem]
+```
+
+#### Parameters
+
+| Parameter     | Type   | Description                            | Default |
+| ------------- | ------ | -------------------------------------- | ------- |
+| `maxTime`     | Int    | Timeout in milliseconds                | `6000`  |
+| `maxDepth`    | Int    | Maximum proof search depth             | `9`     |
+| `logicSystem` | String | Logic system: `plain`, `efq`, or `dne` | `dne`   |
+
+- `plain`: Uses only plain inference rules
+- `efq`: Uses intuitionistic logic (ex falso quodlibet)
+- `dne`: Uses classical logic (double negation elimination)
+
+#### Examples
+
+```bash
+# Use default settings (maxTime=6000, maxDepth=9, logicSystem=dne)
+stack run evaluate-exe
+
+# Set custom timeout (10 seconds)
+stack run evaluate-exe 10000
+
+# Set timeout and depth
+stack run evaluate-exe 10000 12
+
+# Specify all parameters
+stack run evaluate-exe 10000 12 efq
+```
+
+#### Output
+
+- TeX report: `evaluateResult/report_<config>_<timestamp>.tex`
+- Proof trees (Normal): `evaluateResult/proofTrees_<config>_<timestamp>/normal/`
+- Proof trees (NeuralWani): `evaluateResult/proofTrees_<config>_<timestamp>/neural/`
+
+---
+
+### 4. Builder (`builder-exe`)
+
+Builds the prioritized rules function using a trained model.
+
+> **Note:** This feature is currently under development.
+
+```bash
+stack run builder-exe
 ```

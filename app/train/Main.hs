@@ -21,6 +21,8 @@ import           System.Environment (getArgs)
 import System.Mem (performGC)
 import System.Directory (createDirectoryIfMissing)
 import qualified DTS.QueryTypes as QT
+import qualified DTS.Prover.Wani.BackwardRules as BR
+import Data.Maybe (mapMaybe)
 
 --hasktorch関連のインポート
 import Torch.Tensor       (Tensor(..),asValue, asTensor, toDevice)
@@ -36,17 +38,18 @@ import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
 import ML.Exp.Classification (showClassificationReport) --nlp-tools
 
 --プロジェクト固有のモジュール
-import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment, DelimiterToken(..))
+import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment, DelimiterToken(..), dttruleToRuleLabel)
 import Forward (HypParams(..), Params(..), forward)
 
--- | すべてのラベル（DTT規則）のリスト
-allLabels :: [QT.DTTrule]
+-- | すべてのラベル（RuleLabel）のリスト
+allLabels :: [BR.RuleLabel]
 allLabels = [minBound..]
 
 -- | すべてのトークンのリスト
 allTokens :: [Token]
 allTokens = [minBound..]
 
+-- | 元データのフィルタリング用のDTTruleリスト
 backwardRules :: [QT.DTTrule]
 backwardRules = [QT.PiF, QT.SigmaF, QT.IqF, QT.Var, QT.Con, QT.PiI, QT.SigmaI, QT.PiE, QT.TopI, QT.DisjI, QT.DisjE, QT.DisjF, QT.DNE, QT.EFQ]
 
@@ -61,10 +64,10 @@ formationRules = [QT.TypeF, QT.PiF, QT.SigmaF, QT.DisjF, QT.BotF, QT.TopF, QT.En
 --
 -- 戻り値：
 -- * (規則, 出現回数)のペアのリスト（出現回数の降順）
-countRule :: [QT.DTTrule] -> [(QT.DTTrule, Int)]
+countRule :: [BR.RuleLabel] -> [(BR.RuleLabel, Int)]
 countRule rules = List.sortOn (Down . snd) $ Map.toList ruleFreqMap
   where
-    ruleFreqMap :: Map.Map QT.DTTrule Int
+    ruleFreqMap :: Map.Map BR.RuleLabel Int
     ruleFreqMap = foldr (\word acc -> Map.insertWith (+) word 1 acc) Map.empty rules
 
 -- | データセットをラベル（規則）ごとに分割する関数
@@ -75,7 +78,7 @@ countRule rules = List.sortOn (Down . snd) $ Map.toList ruleFreqMap
 --
 -- 戻り値：
 -- * (規則, その規則に対応するデータのリスト)のペアのリスト
-splitByLabel :: [([Token], QT.DTTrule)] -> IO [(QT.DTTrule, [([Token], QT.DTTrule)])]
+splitByLabel :: [([Token], BR.RuleLabel)] -> IO [(BR.RuleLabel, [([Token], BR.RuleLabel)])]
 splitByLabel dataset = return $ splitByLabel' dataset Map.empty
   where
     splitByLabel' [] acc = Map.toList acc
@@ -94,7 +97,7 @@ splitByLabel dataset = return $ splitByLabel' dataset Map.empty
 -- 戻り値：
 -- * (訓練データ, 検証データ, テストデータ)のタプル
 -- * 訓練：検証：テスト = 8：1：1 の比率で分割
-smoothData :: [(QT.DTTrule, [([Token], QT.DTTrule)])] -> Maybe Int -> IO ([([Token], QT.DTTrule)], [([Token], QT.DTTrule)], [([Token], QT.DTTrule)])
+smoothData :: [(BR.RuleLabel, [([Token], BR.RuleLabel)])] -> Maybe Int -> IO ([([Token], BR.RuleLabel)], [([Token], BR.RuleLabel)], [([Token], BR.RuleLabel)])
 smoothData splittedData threshold = smoothData' splittedData [] [] []
   where
     smoothData' [] trainDataAcc validDataAcc testDataAcc = return (trainDataAcc, validDataAcc, testDataAcc)
@@ -128,7 +131,7 @@ smoothData splittedData threshold = smoothData' splittedData [] [] []
 -- 戻り値：
 -- * (学習済みモデル, 損失ペアのリスト, 頻出語のリスト)のタプル
 -- * 損失ペアは(訓練損失, 検証損失)のリスト
-trainModel :: Device -> HypParams -> [([Token], QT.DTTrule)] -> [([Token], QT.DTTrule)] -> Bool -> Int -> Int -> Tensor -> [TL.Text] -> IO (Params, [(Float, Float)], [TL.Text])
+trainModel :: Device -> HypParams -> [([Token], BR.RuleLabel)] -> [([Token], BR.RuleLabel)] -> Bool -> Int -> Int -> Tensor -> [TL.Text] -> IO (Params, [(Float, Float)], [TL.Text])
 trainModel device hyperParams trainData validData biDirectional iter numberOfBatch learningRate frequentWords = do
   -- モデルの初期化
   initModel <- sample hyperParams
@@ -211,13 +214,18 @@ main = do
       isOnlyBackwardRules = True
 
   -- データセットの前処理
+  -- 元データはQT.DTTruleのまま読み込み、フィルタリング後にBR.RuleLabelに変換
   let originalDataset = concat jsemDatasets
       backwardDataset = if isOnlyBackwardRules
                 then filter (\(_, rule) -> elem rule backwardRules) originalDataset
                 else originalDataset
-      dataset = if isIncludeF
+      filteredDataset = if isIncludeF
                 then backwardDataset
                 else filter (\(_, rule) -> rule `notElem` formationRules) backwardDataset
+      dataset = mapMaybe (\(judgment, dttRule) -> 
+                  case dttruleToRuleLabel dttRule of
+                    Just ruleLabel -> Just (judgment, ruleLabel)
+                    Nothing -> Nothing) filteredDataset
       wordList = concatMap (getConstantSymbolsFromJudgment . fst) dataset
       frequentWords = getFrequentConstantSymbols wordList
       constructorData = map (\(judgment, _) -> splitJudgment judgment frequentWords delimiterToken) dataset
@@ -236,7 +244,7 @@ main = do
   print $ "countedRules (training data) " ++ show countedTrainRules
 
   -- ハイパーパラメータの設定
-  let device = Device CUDA 0                 -- 使用するデバイス（CPU/GPU）
+  let device = Device CPU 0                 -- 使用するデバイス（CPU/GPU）
       biDirectional = bi                    -- 双方向LSTMを使用するかどうか
       embDim = emb                          -- 埋め込み層の次元数
       numOfLayers = l                       -- LSTMの層数
@@ -244,7 +252,7 @@ main = do
       hasBias = bias                        -- バイアスを使用するかどうか
       vocabSize = length allTokens          -- 語彙サイズ
       projSize = Nothing                    -- 投影サイズ（オプション）
-      numOfRules = length allLabels         -- 規則の数
+      numOfRules = length (enumFrom minBound :: [BR.RuleLabel])  -- RuleLabelの数を使用
       hyperParams = HypParams device biDirectional embDim hasBias projSize vocabSize numOfLayers hiddenSize numOfRules
       learningRate = toDevice device (asTensor (lr :: Float))
       numberOfBatch = steps                 -- ステップ数
@@ -302,7 +310,7 @@ main = do
         groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
         predictedClassIndex = argmax (Dim 1) KeepDim output'
         isCorrect = groundTruthIndex == predictedClassIndex
-        label = toEnum (asValue predictedClassIndex :: Int) :: QT.DTTrule
+        label = toEnum (asValue predictedClassIndex :: Int) :: BR.RuleLabel
     return (isCorrect, label)
 
   let (isCorrects, predictedLabel) = unzip pairs
