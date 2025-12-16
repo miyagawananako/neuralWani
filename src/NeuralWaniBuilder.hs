@@ -6,13 +6,9 @@ module NeuralWaniBuilder
 
 import qualified DTS.Prover.Wani.WaniBase as WB
 import qualified DTS.Prover.Wani.BackwardRules as BR
-import qualified DTS.Prover.Wani.Arrowterm as A
-import qualified DTS.QueryTypes as QT
 
-import qualified Data.Text.Lazy as T
 import qualified Data.ByteString as B --bytestring
 import Data.Store (decode)
-import Data.List (nub)
 
 import Torch.Serialize (loadParams)
 import Torch.NN (sample)
@@ -20,7 +16,6 @@ import Torch.Device (Device(..),DeviceType(..))
 
 import qualified Forward as F
 import qualified SplitJudgment as S
-import qualified Data.Map.Strict as Map
 
 -- 本来lightblue内に置くパス（パスは仮）。CUDA でしか開けない
 -- modelPath :: FilePath
@@ -65,7 +60,7 @@ neuralWaniBuilder = do
     in case maybeJudgment of
       Just judgment ->
         let predictedRuleLabels = F.predictRule device model judgment bi_directional wordMap delimiterToken
-            filteredRuleLabels = nub $ filter (`elem` availableRuleLabels) predictedRuleLabels
+            filteredRuleLabels = filter (`elem` availableRuleLabels) predictedRuleLabels
         in filteredRuleLabels
       Nothing -> availableRuleLabels
 
