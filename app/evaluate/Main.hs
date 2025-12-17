@@ -26,7 +26,7 @@ import qualified Interface.Text as IText
 
 import TPTP.Convert (processFile)
 import qualified TPTPInfo as TI
-import NeuralWaniBuilder (neuralWaniBuilder)
+import NeuralWaniBuilder (neuralWaniBuilder, modelPath, frequentWordsPath)
 
 data EvalResult = EvalResult
   { erFilename       :: T.Text
@@ -404,6 +404,8 @@ generateTexContent config sessionId results skipped = T.unlines
   , "\\item maxTime: " <> T.pack (show (cfgMaxTime config))
   , "\\item logicSystem: \\textbf{" <> T.pack (logicSystemToStr (cfgLogicSystem config)) <> "}"
   , "\\item Session ID: \\texttt{" <> escapeTeX (T.pack sessionId) <> "}"
+  , "\\item NeuralWani Model: \\texttt{" <> escapeTeX (T.pack modelPath) <> "}"
+  , "\\item NeuralWani FrequentWords: \\texttt{" <> escapeTeX (T.pack frequentWordsPath) <> "}"
   , "\\item Proof Trees (Normal): \\texttt{evaluateResult/proofTrees\\_" <> escapeTeX (T.pack sessionId) <> "/normal/}"
   , "\\item Proof Trees (NeuralWani): \\texttt{evaluateResult/proofTrees\\_" <> escapeTeX (T.pack sessionId) <> "/neural/}"
   , "\\end{itemize}"
@@ -439,6 +441,11 @@ generateSummaryTex results skipped = T.unlines
   , "\\midrule"
   , "Avg. Normal Time & " <> formatTimeNominal avgNormalTime <> " \\\\"
   , "Avg. NeuralWani Time & " <> formatTimeNominal avgNeuralTime <> " \\\\"
+  , "\\midrule"
+  , "All Match (Expected=Normal=Neural) & " <> T.pack (show allMatchCount) <> "/" <> T.pack (show totalEval) 
+      <> " (" <> T.pack (printf "%.1f" allMatchPct) <> "\\%) \\\\"
+  , "Avg. Normal Time (All Match) & " <> allMatchNormalTimeStr <> " \\\\"
+  , "Avg. NeuralWani Time (All Match) & " <> allMatchNeuralTimeStr <> " \\\\"
   , "\\bottomrule"
   , "\\end{tabular}"
   , ""
@@ -458,6 +465,23 @@ generateSummaryTex results skipped = T.unlines
     neuralAcc = if totalEval == 0 then 0 else 100.0 * fromIntegral neuralMatches / fromIntegral totalEval :: Double
     avgNormalTime = if totalEval == 0 then 0 else sum (map erNormalTime results) / fromIntegral totalEval
     avgNeuralTime = if totalEval == 0 then 0 else sum (map erNeuralTime results) / fromIntegral totalEval
+    
+    -- 正解ラベル・NormalProver・NeuralWaniProverすべてが一致する結果
+    allMatchResults = filter isAllMatch results
+      where
+        isAllMatch r = case erExpected r of
+          Just expected -> expected == erNormalResult r && expected == erNeuralResult r
+          Nothing -> False
+    allMatchCount = length allMatchResults
+    allMatchPct = if totalEval == 0 then 0 else 100.0 * fromIntegral allMatchCount / fromIntegral totalEval :: Double
+    
+    -- All Match の平均時間
+    avgAllMatchNormalTime = if allMatchCount == 0 then Nothing 
+                            else Just $ sum (map erNormalTime allMatchResults) / fromIntegral allMatchCount
+    avgAllMatchNeuralTime = if allMatchCount == 0 then Nothing 
+                            else Just $ sum (map erNeuralTime allMatchResults) / fromIntegral allMatchCount
+    allMatchNormalTimeStr = maybe "N/A" formatTimeNominal avgAllMatchNormalTime
+    allMatchNeuralTimeStr = maybe "N/A" formatTimeNominal avgAllMatchNeuralTime
 
 -- | 混同行列のTeXを生成（predicted vs actual）
 generateConfusionMatrix :: [EvalResult] -> (EvalResult -> TI.Result) -> T.Text
