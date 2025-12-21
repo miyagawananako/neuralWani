@@ -8,12 +8,14 @@ import qualified Data.Text.IO as T
 import qualified Data.Text.Lazy as TL
 import Data.Store (decode)
 import Data.Maybe (mapMaybe)
-import Data.List (sort, isPrefixOf)
+import Data.List (sort, isPrefixOf, sortOn)
+import Data.Ord (Down(..))
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.Format (formatTime, defaultTimeLocale)
 import System.Environment (getArgs)
 import System.Directory (listDirectory, createDirectoryIfMissing, doesFileExist, doesDirectoryExist)
 import System.FilePath ((</>), takeBaseName, takeExtension)
+import System.IO (writeFile)
 
 import qualified DTS.DTTdeBruijn as DTT
 import qualified DTS.QueryTypes as QT
@@ -42,13 +44,44 @@ convertToRuleLabel (judgment, dttRule) =
     Just ruleLabel -> Just (judgment, ruleLabel)
     Nothing -> Nothing
 
--- | デフォルトのハイパーパラメータ（NeuralWaniBuilderと同じ設定）
+-- | Formation rules are excluded during evaluation
+isFormationRule :: BR.RuleLabel -> Bool
+isFormationRule rl = case rl of
+  BR.PiForm    -> True
+  BR.SigmaForm -> True
+  BR.EqForm    -> True
+  BR.DisjForm  -> True
+  _            -> False
+
+-- | 評価に使用したメタ情報を保存する
+saveEvalMetadata :: FilePath -> FilePath -> FilePath -> HypParams -> Int -> Int -> IO ()
+saveEvalMetadata outputDir modelPath frequentWordsPath hyperParams totalPairs usedPairs = do
+  let metaFile = outputDir </> "metadata.txt"
+      content = unlines
+        [ "modelPath: " ++ modelPath
+        , "frequentWordsPath: " ++ frequentWordsPath
+        , "extractedPairs: " ++ show totalPairs
+        , "filteredPairs: " ++ show usedPairs
+        , "device: " ++ show (dev hyperParams)
+        , "bi_directional: " ++ show (bi_directional hyperParams)
+        , "emb_dim: " ++ show (emb_dim hyperParams)
+        , "hidden_size: " ++ show (hidden_size hyperParams)
+        , "num_layers: " ++ show (num_layers hyperParams)
+        , "has_bias: " ++ show (has_bias hyperParams)
+        , "proj_size: " ++ show (proj_size hyperParams)
+        , "vocab_size: " ++ show (vocab_size hyperParams)
+        , "num_rules: " ++ show (num_rules hyperParams)
+        ]
+  writeFile metaFile content
+  putStrLn $ "Metadata saved to: " ++ metaFile
+
+-- | デフォルトのハイパーパラメータ
 defaultHyperParams :: HypParams
 defaultHyperParams = HypParams
-  { dev = Device CPU 0
+  { dev = Device CUDA 0
   , bi_directional = False
   , emb_dim = 256
-  , has_bias = False
+  , has_bias = True
   , proj_size = Nothing
   , vocab_size = length (enumFrom minBound :: [Token])
   , num_layers = 1
@@ -58,15 +91,19 @@ defaultHyperParams = HypParams
 
 -- | デフォルトのモデルパス
 defaultModelPath :: FilePath
-defaultModelPath = "trainedDataBackwardWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-15_12-14-54/seq-class.model"
+defaultModelPath = "trainedDataBackwardWithoutF/typeEo_biFalse_s32_lr5.0e-4_i128_h128_layer1/2025-12-16_13-41-38/seq-class.model"
 
 -- | デフォルトのfrequentWordsパス
 defaultFrequentWordsPath :: FilePath
-defaultFrequentWordsPath = "trainedDataBackwardWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-15_12-14-54/frequentWords.bin"
+defaultFrequentWordsPath = "trainedDataBackwardWithoutF/typeEo_biFalse_s32_lr5.0e-4_i128_h128_layer1/2025-12-16_13-41-38/frequentWords.bin"
 
 -- | 抽出データの基本ディレクトリ（extract-exeと同じ）
 extractedDataBaseDir :: FilePath
 extractedDataBaseDir = "extractedData"
+
+-- | 学習済みモデルのベースディレクトリ
+trainedDataBaseDir :: FilePath
+trainedDataBaseDir = "trainedDataBackwardWithoutF"
 
 -- | 抽出データのサブディレクトリプレフィックス（extract-exeと同じ）
 extractedDataPrefix :: String
@@ -113,6 +150,37 @@ resolveExtractedDir input = do
             else error $ "Directory not found: " ++ input ++ "\n" ++
                          "  Tried: " ++ input ++ ", " ++ withPrefix ++ ", " ++ inBaseDir
 
+-- | trainedDataBackwardWithoutF 以下から最新のモデルとfrequentWordsを探す
+findLatestModel :: IO (FilePath, FilePath)
+findLatestModel = do
+  topDirs <- listDirectory trainedDataBaseDir
+  let sortedTop = sortOn Down topDirs
+  firstMatch <- goTop sortedTop
+  case firstMatch of
+    Just v  -> return v
+    Nothing -> error $ "No model found under " ++ trainedDataBaseDir
+  where
+    goTop [] = return Nothing
+    goTop (d:ds) = do
+      let topPath = trainedDataBaseDir </> d
+      subDirs <- listDirectory topPath
+      let sortedSub = sortOn Down subDirs
+      m <- goSub d sortedSub
+      case m of
+        Just res -> return (Just res)
+        Nothing  -> goTop ds
+
+    goSub _ [] = return Nothing
+    goSub top (s:ss) = do
+      let basePath = trainedDataBaseDir </> top </> s
+          modelPath = basePath </> "seq-class.model"
+          freqPath  = basePath </> "frequentWords.bin"
+      modelExists <- doesFileExist modelPath
+      freqExists  <- doesFileExist freqPath
+      if modelExists && freqExists
+        then return $ Just (modelPath, freqPath)
+        else goSub top ss
+
 main :: IO ()
 main = do
   args <- getArgs
@@ -131,7 +199,8 @@ main = do
               error usageMsg
         [sessionIdOrDir] -> do
           dir <- resolveExtractedDir sessionIdOrDir
-          return (dir, defaultModelPath, defaultFrequentWordsPath)
+          (m, f) <- findLatestModel
+          return (dir, m, f)
         [sessionIdOrDir, model] -> do
           dir <- resolveExtractedDir sessionIdOrDir
           return (dir, model, defaultFrequentWordsPath)
@@ -139,11 +208,17 @@ main = do
           dir <- resolveExtractedDir sessionIdOrDir
           return (dir, model, freqWords)
         _ -> error usageMsg
+
+  let hyperParamsUsed = defaultHyperParams
   
   putStrLn "=== Evaluate Extracted Data ==="
   putStrLn $ "Extracted data directory: " ++ extractedDir
   putStrLn $ "Model path: " ++ modelPath
   putStrLn $ "FrequentWords path: " ++ frequentWordsPath
+  putStrLn $ "HyperParams (default): bi=" ++ show (bi_directional hyperParamsUsed)
+             ++ " emb=" ++ show (emb_dim hyperParamsUsed)
+             ++ " hid=" ++ show (hidden_size hyperParamsUsed)
+             ++ " layers=" ++ show (num_layers hyperParamsUsed)
   putStrLn ""
   
   -- ファイルの存在確認
@@ -158,7 +233,7 @@ main = do
   
   -- モデルとfrequentWordsをロード
   putStrLn "Loading model and frequentWords..."
-  (model, wordMap) <- loadModelAndFrequentWords modelPath frequentWordsPath defaultHyperParams
+  (model, wordMap) <- loadModelAndFrequentWords modelPath frequentWordsPath hyperParamsUsed
   putStrLn "Model loaded successfully."
   putStrLn ""
   
@@ -182,22 +257,26 @@ main = do
   
   -- DTTruleからRuleLabelへ変換（変換できないものはフィルタリング）
   let convertedData = mapMaybe convertToRuleLabel allData
-  putStrLn $ "Converted pairs (with valid RuleLabel): " ++ show (length convertedData)
+      filteredData  = filter (not . isFormationRule . snd) convertedData
+  let totalPairs = length convertedData
+      usedPairs  = length filteredData
+  putStrLn $ "Converted pairs (with valid RuleLabel): " ++ show totalPairs
+  putStrLn $ "Filtered pairs (without formation rules): " ++ show usedPairs
   putStrLn ""
-  
-  if null convertedData
+
+  if null filteredData
     then putStrLn "No valid data to evaluate."
     else do
       -- JudgmentをToken列に変換
-      let delimiterToken = Unused
+      let delimiterToken = Eo
           testData = map (\(judgment, ruleLabel) -> 
                             (splitJudgment judgment wordMap delimiterToken, ruleLabel)
-                         ) convertedData
+                         ) filteredData
       
       -- 評価を実行
       putStrLn "Running evaluation..."
-      let device = dev defaultHyperParams
-          biDirectional = bi_directional defaultHyperParams
+      let device = dev hyperParamsUsed
+          biDirectional = bi_directional hyperParamsUsed
       
       evalResult <- evaluateModel device model testData biDirectional
       
@@ -230,6 +309,7 @@ main = do
       
       let allLabels = enumFrom minBound :: [BR.RuleLabel]
       saveEvaluationReport outputDir evalResult allLabels
+      saveEvalMetadata outputDir modelPath frequentWordsPath hyperParamsUsed totalPairs usedPairs
       
       putStrLn ""
       putStrLn $ "Results saved to: " ++ outputDir

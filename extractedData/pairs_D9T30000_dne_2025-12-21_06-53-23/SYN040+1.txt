@@ -1,0 +1,132 @@
+1. Rule: SigmaI
+   Judgment: type |- (λ.λ.λ.(1 (2 0)),λ.λ.( dne  λ.((2 2) 1))):(Σ (Π (Π p)q)(Π ¬q)¬p)(Π (Π ¬q)¬p)(Π p)q
+
+2. Rule: PiI
+   Judgment: type |- λ.λ.λ.(1 (2 0)):(Π (Π p)q)(Π ¬q)¬p
+
+3. Rule: PiE
+   Judgment: type, (Π p)q, ¬q, p |- (1 (2 0)):⊥
+
+4. Rule: Var
+   Judgment: type, (Π p)q, ¬q, p |- 1:¬q
+
+5. Rule: PiE
+   Judgment: type, (Π p)q, ¬q, p |- (2 0):q
+
+6. Rule: Var
+   Judgment: type, (Π p)q, ¬q, p |- 2:(Π p)q
+
+7. Rule: Var
+   Judgment: type, (Π p)q, ¬q, p |- 0:p
+
+8. Rule: Var
+   Judgment: type, (Π p)q, ¬q, p |- 0:p
+
+9. Rule: PiF
+   Judgment: type |- (Π p)q:type
+
+10. Rule: Var
+   Judgment: type |- p:type
+
+11. Rule: Con
+   Judgment: type |- p:type
+
+12. Rule: Var
+   Judgment: type, p |- q:type
+
+13. Rule: Con
+   Judgment: type, p |- q:type
+
+14. Rule: PiF
+   Judgment: type, (Π p)q |- ¬q:type
+
+15. Rule: Var
+   Judgment: type, (Π p)q |- q:type
+
+16. Rule: Con
+   Judgment: type, (Π p)q |- q:type
+
+17. Rule: BotF
+   Judgment: type, (Π p)q, q |- ⊥:type
+
+18. Rule: Var
+   Judgment: type, (Π p)q, ¬q |- p:type
+
+19. Rule: Con
+   Judgment: type, (Π p)q, ¬q |- p:type
+
+20. Rule: PiI
+   Judgment: type |- λ.λ.( dne  λ.((2 2) 1)):(Π (Π ¬q)¬p)(Π p)q
+
+21. Rule: DNE
+   Judgment: type, (Π ¬q)¬p, p |- ( dne  λ.((2 0) 1)):q
+
+22. Rule: Var
+   Judgment: type, (Π ¬q)¬p, p |- q:type
+
+23. Rule: Con
+   Judgment: type, (Π ¬q)¬p, p |- q:type
+
+24. Rule: PiI
+   Judgment: type, (Π ¬q)¬p, p |- λ.((2 0) 1):¬¬q
+
+25. Rule: PiE
+   Judgment: type, (Π ¬q)¬p, p, ¬q |- ((2 0) 1):⊥
+
+26. Rule: Var
+   Judgment: type, (Π ¬q)¬p, p, ¬q |- 2:(Π ¬q)¬p
+
+27. Rule: Var
+   Judgment: type, (Π ¬q)¬p, p, ¬q |- 0:¬q
+
+28. Rule: Var
+   Judgment: type, (Π ¬q)¬p, p, ¬q |- 0:¬q
+
+29. Rule: Var
+   Judgment: type, (Π ¬q)¬p, p, ¬q |- 1:p
+
+30. Rule: Var
+   Judgment: type, (Π ¬q)¬p, p, ¬q |- 1:p
+
+31. Rule: PiF
+   Judgment: type, (Π ¬q)¬p, p |- ¬q:type
+
+32. Rule: Var
+   Judgment: type, (Π ¬q)¬p, p |- q:type
+
+33. Rule: Con
+   Judgment: type, (Π ¬q)¬p, p |- q:type
+
+34. Rule: BotF
+   Judgment: type, (Π ¬q)¬p, p, q |- ⊥:type
+
+35. Rule: PiF
+   Judgment: type |- (Π ¬q)¬p:type
+
+36. Rule: PiF
+   Judgment: type |- ¬q:type
+
+37. Rule: Var
+   Judgment: type |- q:type
+
+38. Rule: Con
+   Judgment: type |- q:type
+
+39. Rule: BotF
+   Judgment: type, q |- ⊥:type
+
+40. Rule: Var
+   Judgment: type, ¬q |- p:type
+
+41. Rule: Con
+   Judgment: type, ¬q |- p:type
+
+42. Rule: BotF
+   Judgment: type, ¬q, p |- ⊥:type
+
+43. Rule: Var
+   Judgment: type, (Π ¬q)¬p |- p:type
+
+44. Rule: Con
+   Judgment: type, (Π ¬q)¬p |- p:type
+
