@@ -99,11 +99,63 @@ main = do
   createDirectoryIfMissing True outputDir
 
   -- data/TPTP/ 配下のサブディレクトリからファイルを取得
-  fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
+  -- fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
+  -- let fofFiles = sort fofFilesWithSubDir
   
-  let fofFiles = sort fofFilesWithSubDir
-  -- テスト用に限定したい場合は以下を使用
-  -- let fofFiles = [("SYN", "SYN950+1.p"), ("SYN", "SYN952+1.p"), ("SYN", "SYN958+1.p")]
+  -- Normal Proverで正解ラベル（Expected）と同じラベルを予測できた問題（45問）
+  -- 設定:
+  --   maxDepth: 9
+  --   maxTime: 6000
+  --   logicSystem: dne (Classical)
+  --   Session ID: D9T6000_dne_2025-12-15_11-28-23
+  -- 結果: Normal Prover Correct 45/264 (17.0%)
+  let fofFiles =
+        [ ("SYN", "SYN001+1.p")
+        , ("SYN", "SYN040+1.p")
+        , ("SYN", "SYN041+1.p")
+        , ("SYN", "SYN055+1.p")
+        , ("SYN", "SYN355+1.p")
+        , ("SYN", "SYN357+1.p")
+        , ("SYN", "SYN378+1.p")
+        , ("SYN", "SYN387+1.p")
+        , ("SYN", "SYN388+1.p")
+        , ("SYN", "SYN390+1.p")
+        , ("SYN", "SYN394+1.p")
+        , ("SYN", "SYN395+1.p")
+        , ("SYN", "SYN399+1.p")
+        , ("SYN", "SYN400+1.p")
+        , ("SYN", "SYN401+1.p")
+        , ("SYN", "SYN402+1.p")
+        , ("SYN", "SYN403+1.p")
+        , ("SYN", "SYN405+1.p")
+        , ("SYN", "SYN406+1.p")
+        , ("SYN", "SYN408+1.p")
+        , ("SYN", "SYN416+1.p")
+        , ("SYN", "SYN915+1.p")
+        , ("SYN", "SYN916+1.p")
+        , ("SYN", "SYN923+1.p")
+        , ("SYN", "SYN926+1.p")
+        , ("SYN", "SYN927+1.p")
+        , ("SYN", "SYN929+1.p")
+        , ("SYN", "SYN933+1.p")
+        , ("SYN", "SYN945+1.p")
+        , ("SYN", "SYN953+1.p")
+        , ("SYN", "SYN955+1.p")
+        , ("SYN", "SYN956+1.p")
+        , ("SYN", "SYN958+1.p")
+        , ("SYN", "SYN959+1.p")
+        , ("SYN", "SYN961+1.p")
+        , ("SYN", "SYN962+1.p")
+        , ("SYN", "SYN964+1.p")
+        , ("SYN", "SYN969+1.p")
+        , ("SYN", "SYN970+1.p")
+        , ("SYN", "SYN972+1.p")
+        , ("SYN", "SYN974+1.p")
+        , ("SYN", "SYN975+1.p")
+        , ("SYN", "SYN976+1.p")
+        , ("SYN", "SYN978+1.p")
+        , ("SYN", "SYN981+1.p")
+        ]
   
   putStrLn $ "Found " ++ show (length fofFiles) ++ " FOF files (with '+' in filename)"
   putStrLn ""
