@@ -73,13 +73,117 @@ stack run train-exe <bi> <emb> <h> <l> <bias> <lr> <steps> <iter> <delimiterToke
 stack run train-exe False 256 256 1 False 5e-4 32 10 Unused
 ```
 
+#### Output
+
+Trained models are saved to:
+
+```
+trainedDataBackwardWithoutF/type<delimiterToken>_bi<bi>_s<steps>_lr<lr>_i<emb>_h<h>_layer<l>/<timestamp>/
+├── seq-class.model      # Model parameters
+├── frequentWords.bin    # Frequent words for tokenization
+├── graph-seq-class.png  # Learning curve
+├── confusion-matrix.png # Confusion matrix
+├── classification-report.txt
+└── training-time.txt
+```
+
 ---
 
-### 2. Evaluation (`evaluate-exe`)
+### 2. Extract Judgment-Rule Pairs (`extract-exe`)
+
+Extracts judgment-rule pairs from TPTP proof trees for model evaluation.
+
+```bash
+stack run extract-exe [maxTime] [maxDepth] [logicSystem]
+```
+
+#### Parameters
+
+| Parameter     | Type   | Description                            | Default |
+| ------------- | ------ | -------------------------------------- | ------- |
+| `maxTime`     | Int    | Timeout in milliseconds                | `6000`  |
+| `maxDepth`    | Int    | Maximum proof search depth             | `9`     |
+| `logicSystem` | String | Logic system: `plain`, `efq`, or `dne` | `dne`   |
+
+#### Examples
+
+```bash
+# Use default settings
+stack run extract-exe
+
+# Set custom timeout
+stack run extract-exe 10000
+
+# Specify all parameters
+stack run extract-exe 10000 12 dne
+```
+
+#### Output
+
+Extracted data is saved to:
+
+```
+extractedData/pairs_D<maxDepth>T<maxTime>_<logicSystem>_<timestamp>/
+├── <problem_name>.bin   # Binary format (Judgment, DTTrule) pairs
+└── <problem_name>.txt   # Human-readable format (for debugging)
+```
+
+---
+
+### 3. Evaluate Extracted Data (`eval-extract-exe`)
+
+Evaluates a trained model on extracted judgment-rule pairs.
+
+```bash
+stack run eval-extract-exe <sessionId|directory> [modelPath] [frequentWordsPath]
+```
+
+#### Parameters
+
+| Parameter           | Type   | Description                                        | Default                    |
+| ------------------- | ------ | -------------------------------------------------- | -------------------------- |
+| `sessionId`         | String | Session ID from extract-exe or full directory path | Required                   |
+| `modelPath`         | String | Path to trained model                              | Default model path         |
+| `frequentWordsPath` | String | Path to frequentWords.bin                          | Default frequentWords path |
+
+#### Session ID Formats
+
+The following formats are accepted:
+
+- Session ID only: `D9T6000_dne_2025-12-21_12-00-00`
+- With prefix: `pairs_D9T6000_dne_2025-12-21_12-00-00`
+- Full path: `extractedData/pairs_D9T6000_dne_2025-12-21_12-00-00`
+
+#### Examples
+
+```bash
+# List available extracted data directories
+stack run eval-extract-exe
+
+# Evaluate with default model
+stack run eval-extract-exe D9T6000_dne_2025-12-21_12-00-00
+
+# Specify custom model
+stack run eval-extract-exe D9T6000_dne_2025-12-21_12-00-00 path/to/model.model path/to/frequentWords.bin
+```
+
+#### Output
+
+Evaluation results are saved to:
+
+```
+evaluationResults/eval_<sessionId>_<timestamp>/
+├── classification-report.txt
+└── confusion-matrix.png
+```
+
+---
+
+### 4. TPTP Evaluation (`evaluate-exe`)
 
 Evaluates the prover on TPTP files, comparing Normal and NeuralWani provers.
 
-> **Note:** This feature is currently under development. The NeuralWani prover is not yet integrated.
+> **Note:** This feature is currently under development. The NeuralWani prover is not yet fully integrated.
 
 ```bash
 stack run evaluate-exe [maxTime] [maxDepth] [logicSystem]
@@ -115,16 +219,49 @@ stack run evaluate-exe 10000 12 efq
 
 #### Output
 
-- TeX report: `evaluateResult/report_<config>_<timestamp>.tex`
-- Proof trees (Normal): `evaluateResult/proofTrees_<config>_<timestamp>/normal/`
-- Proof trees (NeuralWani): `evaluateResult/proofTrees_<config>_<timestamp>/neural/`
+Results are saved to:
+
+```
+evaluateResult/
+├── report_<config>_<timestamp>.tex           # TeX report
+├── proofTrees_<config>_<timestamp>/
+│   ├── normal/                               # Proof trees (Normal prover)
+│   │   ├── positive/<problem>.txt
+│   │   ├── positive/<problem>.html
+│   │   ├── negative/<problem>.txt
+│   │   └── negative/<problem>.html
+│   └── neural/                               # Proof trees (NeuralWani prover)
+│       └── ...
+└── perFile_<config>_<timestamp>/             # Per-file comparison reports
+    └── <problem>_comparison.tex
+```
 
 ---
 
-### 3. Builder (`builder-exe`)
+### 5. Builder (`builder-exe`)
 
-Builds the prioritized rules function using a trained model.
+Builds and tests the prioritized rules function using a trained model.
 
 ```bash
 stack run builder-exe
+```
+
+---
+
+## Workflow Example
+
+A typical workflow for training and evaluating a model:
+
+```bash
+# 1. Train a model on JSeM data
+stack run train-exe False 256 256 1 False 5e-4 32 10 Unused
+
+# 2. Extract judgment-rule pairs from TPTP problems
+stack run extract-exe 6000 9 dne
+
+# 3. Evaluate the model on extracted data
+stack run eval-extract-exe D9T6000_dne_2025-12-21_12-00-00
+
+# 4. (Optional) Run full TPTP evaluation comparing Normal vs NeuralWani
+stack run evaluate-exe 6000 9 dne
 ```

@@ -11,7 +11,6 @@ import qualified Data.Text.Lazy as TL --text
 import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
-import qualified Data.Text.Encoding as E
 import Data.Store (encode)
 import Data.Ord (Down(..))
 import qualified Data.Map.Strict as Map
@@ -27,19 +26,19 @@ import Data.Maybe (mapMaybe)
 --hasktorch関連のインポート
 import Torch.Tensor       (Tensor(..),asValue, asTensor, toDevice)
 import Torch.Device       (Device(..),DeviceType(..))
-import Torch.Functional   (Dim(..),nllLoss',argmax,KeepDim(..))
+import Torch.Functional   (Dim(..),nllLoss')
 import Torch.NN           (sample, flattenParameters)
 import Torch.Optim        (mkAdam)
 import Torch.Train        (update,saveParams)
 import Torch.Control      (mapAccumM)
 
 --可視化と評価用のツール
-import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
-import ML.Exp.Classification (showClassificationReport) --nlp-tools
+import ML.Exp.Chart   (drawLearningCurve) --nlp-tools
 
 --プロジェクト固有のモジュール
 import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment, DelimiterToken(..), dttruleToRuleLabel, buildWordMap)
 import Forward (HypParams(..), Params(..), forward)
+import Evaluate (evaluateModel, saveEvaluationReport, EvaluationResult(..))
 
 -- | すべてのラベル（RuleLabel）のリスト
 allLabels :: [BR.RuleLabel]
@@ -294,8 +293,6 @@ main = do
   let modelFileName = newFolderPath ++ "/seq-class" ++ ".model"
       frequentWordsFileName = newFolderPath ++ "/frequentWords" ++ ".bin"
       graphFileName =  newFolderPath ++ "/graph-seq-class"  ++ ".png"
-      confusionMatrixFileName =  newFolderPath ++ "/confusion-matrix" ++ ".png"
-      classificationReportFileName =  newFolderPath ++ "/classification-report" ++ ".txt"
       trainingTimeFileName = newFolderPath ++ "/training-time" ++ ".txt"
       learningCurveTitle = "type: " ++ show delimiterToken ++ " bi: " ++ show biDirectional ++ " s: " ++ show numberOfBatch ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
@@ -306,37 +303,24 @@ main = do
 
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
-  -- テストデータに対する予測と評価
-  pairs <- forM testData $ \dataPoint -> do
-    let output' = forward device trainedModel (fst dataPoint) biDirectional
-        groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
-        predictedClassIndex = argmax (Dim 1) KeepDim output'
-        isCorrect = groundTruthIndex == predictedClassIndex
-        label = toEnum (asValue predictedClassIndex :: Int) :: BR.RuleLabel
-    return (isCorrect, label)
-
-  let (isCorrects, predictedLabel) = unzip pairs
-
+  -- テストデータに対する予測と評価（Evaluateモジュールを使用）
+  evalResult <- evaluateModel device trainedModel testData biDirectional
+  
   -- 予測結果の表示
-  print $ zip predictedLabel (snd $ unzip $ testData)
-
-  -- 分類レポートの生成と保存
-  let classificationReport = showClassificationReport (length allLabels) (zip predictedLabel (snd $ unzip $ testData))
-  T.putStr classificationReport
-
-  B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
-
+  print $ erPredictions evalResult
+  
+  -- 分類レポートの表示
+  T.putStr $ TL.toStrict $ erClassificationReport evalResult
+  
   -- 学習時間の保存
   let trainingTimeReport = TL.pack $ "Training Duration: " ++ show trainingDuration ++ "\n" ++
                                       "Start Time: " ++ show startTime ++ "\n" ++
                                       "End Time: " ++ show endTime ++ "\n"
   T.writeFile trainingTimeFileName (TL.toStrict trainingTimeReport)
-
-  -- 混同行列の描画
-  drawConfusionMatrix confusionMatrixFileName (length allLabels) (zip predictedLabel (snd $ unzip $ testData))
-
-  -- 精度の計算と表示
-  print $ "isCorrects " ++ show isCorrects
-
-  let accuracy = (fromIntegral (length (filter id isCorrects)) / fromIntegral (length isCorrects)) :: Double
-  print $ "Accuracy: " ++ show accuracy
+  
+  -- 評価結果をファイルに保存（分類レポートと混同行列）
+  saveEvaluationReport newFolderPath evalResult allLabels
+  
+  -- 精度の表示
+  print $ "isCorrects " ++ show (erCorrectFlags evalResult)
+  print $ "Accuracy: " ++ show (erAccuracy evalResult)
