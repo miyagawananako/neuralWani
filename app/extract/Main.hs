@@ -45,7 +45,7 @@ defaultMaxDepth :: Int
 defaultMaxDepth = 9
 
 defaultMaxTime :: Int
-defaultMaxTime = 6000
+defaultMaxTime = 90000
 
 data ProverConfig = ProverConfig
   { cfgMaxDepth     :: Int
@@ -99,17 +99,17 @@ main = do
   createDirectoryIfMissing True outputDir
 
   -- data/TPTP/ 配下のサブディレクトリからファイルを取得
-  -- fofFilesWithSubDir <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
-  -- let fofFiles = sort fofFilesWithSubDir
+  allFofFiles <- fmap concat $ mapM getFilesFromSubDir targetSubDirs
   
   -- Normal Proverで正解ラベル（Expected）と同じラベルを予測できた問題（45問）
+  -- これらは既に処理済みなので除外する
   -- 設定:
   --   maxDepth: 9
   --   maxTime: 6000
   --   logicSystem: dne (Classical)
   --   Session ID: D9T6000_dne_2025-12-15_11-28-23
   -- 結果: Normal Prover Correct 45/264 (17.0%)
-  let fofFiles =
+  let excludeFiles =
         [ ("SYN", "SYN001+1.p")
         , ("SYN", "SYN040+1.p")
         , ("SYN", "SYN041+1.p")
@@ -156,6 +156,8 @@ main = do
         , ("SYN", "SYN978+1.p")
         , ("SYN", "SYN981+1.p")
         ]
+      -- 除外リストに含まれないファイルのみを処理対象とする
+      fofFiles = sort $ filter (`notElem` excludeFiles) allFofFiles
   
   putStrLn $ "Found " ++ show (length fofFiles) ++ " FOF files (with '+' in filename)"
   putStrLn ""
