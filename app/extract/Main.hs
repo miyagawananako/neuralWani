@@ -19,20 +19,29 @@ import Text.Read (readMaybe)
 import Control.DeepSeq (rnf)
 import Control.Exception (evaluate, try, SomeException)
 import qualified ListT
+import qualified Interface.Tree as I
 
 import qualified DTS.QueryTypes as QT
 import qualified DTS.DTTdeBruijn as DTT
 import qualified DTS.Prover.Wani.Prove as Prove
-import qualified Interface.Tree as I
+import qualified DTS.Prover.Wani.Arrowterm as A
 
 import TPTP.Convert (processFile)
 import qualified TPTPInfo as TI
 
 -- | 証明木から判定と規則名のペアを抽出する
+-- I.Tree QT.DTTrule DTT.Judgment を I.Tree Arrowrule AJudgment に変換してから
+-- (Arrowrule, AJudgment) ペアを抽出し、AJudgment を DdB.Judgment に変換する
 extractJudgmentRulePairs :: I.Tree QT.DTTrule DTT.Judgment -> [(DTT.Judgment, QT.DTTrule)]
 extractJudgmentRulePairs tree = 
-  let currentPair = (I.node tree, I.ruleName tree)
-      childPairs = concatMap extractJudgmentRulePairs (I.daughters tree)
+  let aTree = A.jTreeToaTree' tree  -- I.Tree Arrowrule AJudgment に変換
+  in extractArrowPairs aTree
+
+-- | AJudgmentツリーからペアを抽出し、AJudgmentをDdB.Judgmentに変換
+extractArrowPairs :: I.Tree A.Arrowrule A.AJudgment -> [(DTT.Judgment, QT.DTTrule)]
+extractArrowPairs aTree =
+  let currentPair = (A.a2dtJudgment (I.node aTree), I.ruleName aTree)
+      childPairs = concatMap extractArrowPairs (I.daughters aTree)
   in currentPair : childPairs
 
 tptpDir :: FilePath
