@@ -80,12 +80,12 @@ defaultHyperParams :: HypParams
 defaultHyperParams = HypParams
   { dev = Device CUDA 0
   , bi_directional = False
-  , emb_dim = 256
+  , emb_dim = 128
   , has_bias = True
   , proj_size = Nothing
   , vocab_size = length (enumFrom minBound :: [Token])
   , num_layers = 1
-  , hidden_size = 256
+  , hidden_size = 128
   , num_rules = length (enumFrom minBound :: [BR.RuleLabel])
   }
 

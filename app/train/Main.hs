@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 
-import Control.Monad (forM)
+import Control.Monad (forM, when)
 import System.Random.Shuffle (shuffleM)
 import System.Directory (listDirectory, doesDirectoryExist)
 import System.FilePath ((</>), takeExtension)
@@ -194,35 +194,49 @@ trainModel device hyperParams trainData validData biDirectional iter numberOfBat
 
 -- | データセットの種類をパースする
 -- "jsem" -> JSeM
--- "tptp:フォルダ名" -> TPTP フォルダ名
+-- "tptp" または "tptp:任意" -> TPTP（フォルダ指定は無視し全件読む）
 parseDatasetType :: String -> DatasetType
 parseDatasetType "jsem" = JSeM
+parseDatasetType "tptp" = TPTP "all"
 parseDatasetType s
   | "tptp:" `List.isPrefixOf` s = TPTP (drop 5 s)
-  | otherwise = error $ "Unknown dataset type: " ++ s ++ ". Use 'jsem' or 'tptp:folder_name'"
+  | otherwise = error $ "Unknown dataset type: " ++ s ++ ". Use 'jsem' or 'tptp'"
 
 -- | データセットを読み込む関数
 -- JSeM: data/JSeM/ 内のすべてのファイルを読み込む
--- TPTP: extractedData/指定フォルダ/ 内のすべての.binファイルを読み込む
-loadDataset :: DatasetType -> IO [(U.Judgment, QT.DTTrule)]
+-- TPTP: extractedData/ 配下のすべての .bin ファイルを（フォルダ指定に関わらず）読み込む
+-- 戻り値: (データセット, 使用したファイルのリスト)
+loadDataset :: DatasetType -> IO ([(U.Judgment, QT.DTTrule)], [FilePath])
 loadDataset JSeM = do
   jsemFiles <- listDirectory "data/JSeM/"
   datasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
-  return $ concat datasets
+  return (concat datasets, [])
 loadDataset (TPTP folderName) = do
-  let tptpPath = "tptp-judgment-rule-pairs" </> folderName
-  exists <- doesDirectoryExist tptpPath
-  if not exists
-    then error $ "TPTP folder not found: " ++ tptpPath
+  let tptpBasePath = "tptp-judgment-rule-pairs"
+  baseExists <- doesDirectoryExist tptpBasePath
+  if not baseExists
+    then error $ "TPTP base folder not found: " ++ tptpBasePath
     else do
-      allFiles <- listDirectory tptpPath
-      let binFiles = filter (\f -> takeExtension f == ".bin") allFiles
+      binFiles <- List.sort <$> findBinFiles tptpBasePath
       if null binFiles
-        then error $ "No .bin files found in: " ++ tptpPath
+        then error $ "No .bin files found under: " ++ tptpBasePath
         else do
-          print $ "Loading " ++ show (length binFiles) ++ " .bin files from " ++ tptpPath
-          datasets <- mapM (\file -> loadActionsFromBinary (tptpPath </> file)) binFiles
-          return $ concat datasets
+          putStrLn $ "Loading " ++ show (length binFiles) ++ " .bin files from " ++ tptpBasePath ++ " (requested folder: " ++ folderName ++ ")"
+          mapM_ (putStrLn . ("  using: " ++)) binFiles
+          datasets <- mapM loadActionsFromBinary binFiles
+          return (concat datasets, binFiles)
+  where
+    -- extractedData 配下を再帰的に探索して .bin ファイルを収集する
+    findBinFiles :: FilePath -> IO [FilePath]
+    findBinFiles dir = do
+      entries <- listDirectory dir
+      paths <- forM entries $ \entry -> do
+        let path = dir </> entry
+        isDir <- doesDirectoryExist path
+        if isDir
+          then findBinFiles path
+          else return [path | takeExtension entry == ".bin"]
+      return (concat paths)
 
 -- | メイン関数
 -- コマンドライン引数からハイパーパラメータを取得し、
@@ -245,7 +259,7 @@ main = do
 
   -- データセットの読み込み
   print $ "Loading dataset: " ++ show datasetType
-  originalDataset <- loadDataset datasetType
+  (originalDataset, usedBinFiles) <- loadDataset datasetType
 
   -- 形成則を含めるかどうか
   let isIncludeF = False
@@ -283,7 +297,7 @@ main = do
   print $ "countedRules (training data) " ++ show countedTrainRules
 
   -- ハイパーパラメータの設定
-  let device = Device CPU 0                 -- 使用するデバイス（CPU/GPU）
+  let device = Device CUDA 0               -- 使用するデバイス（CPU/GPU）
       biDirectional = bi                    -- 双方向LSTMを使用するかどうか
       embDim = emb                          -- 埋め込み層の次元数
       numOfLayers = l                       -- LSTMの層数
@@ -330,6 +344,12 @@ main = do
       newFolderPath = baseFolderName ++ "/" ++ datasetSuffix ++ "_type" ++ show delimiterToken ++ "_bi" ++ show biDirectional ++ "_s" ++ show numberOfBatch ++ "_lr" ++ show (asValue learningRate :: Float) ++  "_i" ++ show embDim ++ "_h" ++ show hiddenSize ++ "_layer" ++ show numOfLayers ++ "/" ++ timeString
 
   createDirectoryIfMissing True newFolderPath
+
+  -- 使用したbinファイルのリストを保存
+  when (not $ null usedBinFiles) $ do
+    let binLogPath = newFolderPath ++ "/bin-files-used.txt"
+    writeFile binLogPath (unlines usedBinFiles)
+    putStrLn $ "Saved bin file list to " ++ binLogPath
 
   let modelFileName = newFolderPath ++ "/seq-class" ++ ".model"
       frequentWordsFileName = newFolderPath ++ "/frequentWords" ++ ".bin"

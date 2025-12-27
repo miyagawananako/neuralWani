@@ -1,0 +1,441 @@
+1. Rule: SigmaI
+   Judgment: type |- (λ.(λ.(1 (π1(1),λ.(π2(2) π1(2)))),λ.(1 (π1(1),λ.(π2(2) π2(2))))),λ.λ.(π2(0) (( dne  λ.(π1(2) (π1(1),2))),( dne  λ.(π2(2) (π1(1),2)))))):(Σ (Π ¬(Σ ¬p)¬(Σ q)r)(Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r)(Π (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r)¬(Σ ¬p)¬(Σ q)r
+
+2. Rule: PiI
+   Judgment: type |- λ.(λ.(1 (π1(1),λ.(π2(2) π1(2)))),λ.(1 (π1(1),λ.(π2(2) π2(2))))):(Π ¬(Σ ¬p)¬(Σ q)r)(Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r
+
+3. Rule: SigmaI
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- (λ.(1 (π1(0),λ.(π2(1) π1(1)))),λ.(1 (π1(0),λ.(π2(1) π2(1))))):(Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r
+
+4. Rule: PiI
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- λ.(1 (π1(0),λ.(π2(1) π1(1)))):¬(Σ ¬p)¬q
+
+5. Rule: PiE
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q |- (1 (π1(0),λ.(π2(1) π1(0)))):⊥
+
+6. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q |- 1:¬(Σ ¬p)¬(Σ q)r
+
+7. Rule: SigmaI
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q |- (π1(0),λ.(π2(1) π1(0))):(Σ ¬p)¬(Σ q)r
+
+8. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q |- π1(0):¬p
+
+9. Rule: SigmaE
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q |- π1(0):¬p
+
+10. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q |- 0:(Σ ¬p)¬q
+
+11. Rule: PiI
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q |- λ.(π2(1) π1(0)):¬(Σ q)r
+
+12. Rule: PiE
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q, (Σ q)r |- (π2(1) π1(0)):⊥
+
+13. Rule: SigmaE
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q, (Σ q)r |- π2(1):¬q
+
+14. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q, (Σ q)r |- 1:(Σ ¬p)¬q
+
+15. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q, (Σ q)r |- π1(0):q
+
+16. Rule: SigmaE
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q, (Σ q)r |- π1(0):q
+
+17. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q, (Σ q)r |- 0:(Σ q)r
+
+18. Rule: SigmaF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q |- (Σ q)r:type
+
+19. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q, q |- r:type
+
+20. Rule: Con
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q, q |- r:type
+
+21. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q |- q:type
+
+22. Rule: Con
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬q |- q:type
+
+23. Rule: SigmaF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- (Σ ¬p)¬q:type
+
+24. Rule: PiF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, ¬p |- ¬q:type
+
+25. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, ¬p |- q:type
+
+26. Rule: Con
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, ¬p |- q:type
+
+27. Rule: BotF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, ¬p, q |- ⊥:type
+
+28. Rule: PiF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- ¬p:type
+
+29. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- p:type
+
+30. Rule: Con
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- p:type
+
+31. Rule: BotF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, p |- ⊥:type
+
+32. Rule: PiI
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- λ.(1 (π1(0),λ.(π2(1) π2(1)))):¬(Σ ¬p)¬r
+
+33. Rule: PiE
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r |- (1 (π1(0),λ.(π2(1) π2(0)))):⊥
+
+34. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r |- 1:¬(Σ ¬p)¬(Σ q)r
+
+35. Rule: SigmaI
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r |- (π1(0),λ.(π2(1) π2(0))):(Σ ¬p)¬(Σ q)r
+
+36. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r |- π1(0):¬p
+
+37. Rule: SigmaE
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r |- π1(0):¬p
+
+38. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r |- 0:(Σ ¬p)¬r
+
+39. Rule: PiI
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r |- λ.(π2(1) π2(0)):¬(Σ q)r
+
+40. Rule: PiE
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r, (Σ q)r |- (π2(1) π2(0)):⊥
+
+41. Rule: SigmaE
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r, (Σ q)r |- π2(1):¬r
+
+42. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r, (Σ q)r |- 1:(Σ ¬p)¬r
+
+43. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r, (Σ q)r |- π2(0):r
+
+44. Rule: SigmaE
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r, (Σ q)r |- π2(0):r
+
+45. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r, (Σ q)r |- 0:(Σ q)r
+
+46. Rule: SigmaF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r |- (Σ q)r:type
+
+47. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r, q |- r:type
+
+48. Rule: Con
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r, q |- r:type
+
+49. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r |- q:type
+
+50. Rule: Con
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, (Σ ¬p)¬r |- q:type
+
+51. Rule: SigmaF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- (Σ ¬p)¬r:type
+
+52. Rule: PiF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, ¬p |- ¬r:type
+
+53. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, ¬p |- r:type
+
+54. Rule: Con
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, ¬p |- r:type
+
+55. Rule: BotF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, ¬p, r |- ⊥:type
+
+56. Rule: PiF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- ¬p:type
+
+57. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- p:type
+
+58. Rule: Con
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r |- p:type
+
+59. Rule: BotF
+   Judgment: type, ¬(Σ ¬p)¬(Σ q)r, p |- ⊥:type
+
+60. Rule: PiF
+   Judgment: type |- ¬(Σ ¬p)¬(Σ q)r:type
+
+61. Rule: SigmaF
+   Judgment: type |- (Σ ¬p)¬(Σ q)r:type
+
+62. Rule: PiF
+   Judgment: type, ¬p |- ¬(Σ q)r:type
+
+63. Rule: SigmaF
+   Judgment: type, ¬p |- (Σ q)r:type
+
+64. Rule: Var
+   Judgment: type, ¬p, q |- r:type
+
+65. Rule: Con
+   Judgment: type, ¬p, q |- r:type
+
+66. Rule: Var
+   Judgment: type, ¬p |- q:type
+
+67. Rule: Con
+   Judgment: type, ¬p |- q:type
+
+68. Rule: BotF
+   Judgment: type, ¬p, (Σ q)r |- ⊥:type
+
+69. Rule: PiF
+   Judgment: type |- ¬p:type
+
+70. Rule: Var
+   Judgment: type |- p:type
+
+71. Rule: Con
+   Judgment: type |- p:type
+
+72. Rule: BotF
+   Judgment: type, p |- ⊥:type
+
+73. Rule: BotF
+   Judgment: type, (Σ ¬p)¬(Σ q)r |- ⊥:type
+
+74. Rule: PiI
+   Judgment: type |- λ.λ.(π2(0) (( dne  λ.(π1(2) (π1(1),2))),( dne  λ.(π2(2) (π1(1),2))))):(Π (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r)¬(Σ ¬p)¬(Σ q)r
+
+75. Rule: PiE
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- (π2(0) (( dne  λ.(π1(2) (π1(1),0))),( dne  λ.(π2(2) (π1(1),0))))):⊥
+
+76. Rule: SigmaE
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- π2(0):¬(Σ q)r
+
+77. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- 0:(Σ ¬p)¬(Σ q)r
+
+78. Rule: SigmaI
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- (( dne  λ.(π1(2) (π1(1),0))),( dne  λ.(π2(2) (π1(1),0)))):(Σ q)r
+
+79. Rule: DNE
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- ( dne  λ.(π1(2) (π1(1),0))):q
+
+80. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- q:type
+
+81. Rule: Con
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- q:type
+
+82. Rule: PiI
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- λ.(π1(2) (π1(1),0)):¬¬q
+
+83. Rule: PiE
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬q |- (π1(2) (π1(1),0)):⊥
+
+84. Rule: SigmaE
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬q |- π1(2):¬(Σ ¬p)¬q
+
+85. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬q |- 2:(Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r
+
+86. Rule: SigmaI
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬q |- (π1(1),0):(Σ ¬p)¬q
+
+87. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬q |- π1(1):¬p
+
+88. Rule: SigmaE
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬q |- π1(1):¬p
+
+89. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬q |- 1:(Σ ¬p)¬(Σ q)r
+
+90. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬q |- 0:¬q
+
+91. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬q |- 0:¬q
+
+92. Rule: PiF
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- ¬q:type
+
+93. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- q:type
+
+94. Rule: Con
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- q:type
+
+95. Rule: BotF
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, q |- ⊥:type
+
+96. Rule: DNE
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- ( dne  λ.(π2(2) (π1(1),0))):r
+
+97. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- r:type
+
+98. Rule: Con
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- r:type
+
+99. Rule: PiI
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- λ.(π2(2) (π1(1),0)):¬¬r
+
+100. Rule: PiE
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬r |- (π2(2) (π1(1),0)):⊥
+
+101. Rule: SigmaE
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬r |- π2(2):¬(Σ ¬p)¬r
+
+102. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬r |- 2:(Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r
+
+103. Rule: SigmaI
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬r |- (π1(1),0):(Σ ¬p)¬r
+
+104. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬r |- π1(1):¬p
+
+105. Rule: SigmaE
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬r |- π1(1):¬p
+
+106. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬r |- 1:(Σ ¬p)¬(Σ q)r
+
+107. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬r |- 0:¬r
+
+108. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, ¬r |- 0:¬r
+
+109. Rule: PiF
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- ¬r:type
+
+110. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- r:type
+
+111. Rule: Con
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r |- r:type
+
+112. Rule: BotF
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, (Σ ¬p)¬(Σ q)r, r |- ⊥:type
+
+113. Rule: SigmaF
+   Judgment: type |- (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r:type
+
+114. Rule: PiF
+   Judgment: type, ¬(Σ ¬p)¬q |- ¬(Σ ¬p)¬r:type
+
+115. Rule: SigmaF
+   Judgment: type, ¬(Σ ¬p)¬q |- (Σ ¬p)¬r:type
+
+116. Rule: PiF
+   Judgment: type, ¬(Σ ¬p)¬q, ¬p |- ¬r:type
+
+117. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬q, ¬p |- r:type
+
+118. Rule: Con
+   Judgment: type, ¬(Σ ¬p)¬q, ¬p |- r:type
+
+119. Rule: BotF
+   Judgment: type, ¬(Σ ¬p)¬q, ¬p, r |- ⊥:type
+
+120. Rule: PiF
+   Judgment: type, ¬(Σ ¬p)¬q |- ¬p:type
+
+121. Rule: Var
+   Judgment: type, ¬(Σ ¬p)¬q |- p:type
+
+122. Rule: Con
+   Judgment: type, ¬(Σ ¬p)¬q |- p:type
+
+123. Rule: BotF
+   Judgment: type, ¬(Σ ¬p)¬q, p |- ⊥:type
+
+124. Rule: BotF
+   Judgment: type, ¬(Σ ¬p)¬q, (Σ ¬p)¬r |- ⊥:type
+
+125. Rule: PiF
+   Judgment: type |- ¬(Σ ¬p)¬q:type
+
+126. Rule: SigmaF
+   Judgment: type |- (Σ ¬p)¬q:type
+
+127. Rule: PiF
+   Judgment: type, ¬p |- ¬q:type
+
+128. Rule: Var
+   Judgment: type, ¬p |- q:type
+
+129. Rule: Con
+   Judgment: type, ¬p |- q:type
+
+130. Rule: BotF
+   Judgment: type, ¬p, q |- ⊥:type
+
+131. Rule: PiF
+   Judgment: type |- ¬p:type
+
+132. Rule: Var
+   Judgment: type |- p:type
+
+133. Rule: Con
+   Judgment: type |- p:type
+
+134. Rule: BotF
+   Judgment: type, p |- ⊥:type
+
+135. Rule: BotF
+   Judgment: type, (Σ ¬p)¬q |- ⊥:type
+
+136. Rule: SigmaF
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r |- (Σ ¬p)¬(Σ q)r:type
+
+137. Rule: PiF
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, ¬p |- ¬(Σ q)r:type
+
+138. Rule: SigmaF
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, ¬p |- (Σ q)r:type
+
+139. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, ¬p, q |- r:type
+
+140. Rule: Con
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, ¬p, q |- r:type
+
+141. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, ¬p |- q:type
+
+142. Rule: Con
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, ¬p |- q:type
+
+143. Rule: BotF
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, ¬p, (Σ q)r |- ⊥:type
+
+144. Rule: PiF
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r |- ¬p:type
+
+145. Rule: Var
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r |- p:type
+
+146. Rule: Con
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r |- p:type
+
+147. Rule: BotF
+   Judgment: type, (Σ ¬(Σ ¬p)¬q)¬(Σ ¬p)¬r, p |- ⊥:type
+
