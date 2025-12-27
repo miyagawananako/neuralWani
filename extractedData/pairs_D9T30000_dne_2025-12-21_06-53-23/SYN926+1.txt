@@ -1,0 +1,78 @@
+1. Rule: PiI
+   Judgment: type |- λ.((π1(0),π1(π2(0))),(π1(0),π2(π2(0)))):(Π (Σ entity)(Σ (p 0))(q 1))(Σ (Σ entity)(p 0))(Σ entity)(q 0)
+
+2. Rule: SigmaI
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- ((π1(0),π1(π2(0))),(π1(0),π2(π2(0)))):(Σ (Σ entity)(p 0))(Σ entity)(q 0)
+
+3. Rule: SigmaI
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- (π1(0),π1(π2(0))):(Σ entity)(p 0)
+
+4. Rule: Var
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- π1(0):entity
+
+5. Rule: SigmaE
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- π1(0):entity
+
+6. Rule: Var
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- 0:(Σ entity)(Σ (p 0))(q 1)
+
+7. Rule: Var
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- π1(π2(0)):(p π1(0))
+
+8. Rule: SigmaE
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- π1(π2(0)):(p π1(0))
+
+9. Rule: Var
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- 0:(Σ entity)(Σ (p 0))(q 1)
+
+10. Rule: Var
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- π1(0):entity
+
+11. Rule: SigmaE
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- π1(0):entity
+
+12. Rule: Var
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- 0:(Σ entity)(Σ (p 0))(q 1)
+
+13. Rule: Var
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- π2(π2(0)):(q π1(0))
+
+14. Rule: SigmaE
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- π2(π2(0)):(q π1(0))
+
+15. Rule: Var
+   Judgment: type, (Σ entity)(Σ (p 0))(q 1) |- 0:(Σ entity)(Σ (p 0))(q 1)
+
+16. Rule: SigmaF
+   Judgment: type |- (Σ entity)(Σ (p 0))(q 1):type
+
+17. Rule: PiE
+   Judgment: type, entity, (p 0) |- (q 1):type
+
+18. Rule: Con
+   Judgment: type, entity, (p 0) |- q:(Π entity)type
+
+19. Rule: Var
+   Judgment: type, entity, (p 0) |- 1:entity
+
+20. Rule: Var
+   Judgment: type, entity, (p 0) |- 1:entity
+
+21. Rule: Var
+   Judgment: type |- entity:type
+
+22. Rule: Con
+   Judgment: type |- entity:type
+
+23. Rule: PiE
+   Judgment: type, entity |- (p 0):type
+
+24. Rule: Con
+   Judgment: type, entity |- p:(Π entity)type
+
+25. Rule: Var
+   Judgment: type, entity |- 0:entity
+
+26. Rule: Var
+   Judgment: type, entity |- 0:entity
+

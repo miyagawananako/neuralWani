@@ -1,0 +1,81 @@
+1. Rule: PiI
+   Judgment: type |- λ.(0 (λ.1,λ.1)):¬¬(Σ (Π p)p)(Π p)p
+
+2. Rule: PiE
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p |- (0 (λ.0,λ.0)):⊥
+
+3. Rule: Var
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p |- 0:¬(Σ (Π p)p)(Π p)p
+
+4. Rule: SigmaI
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p |- (λ.0,λ.0):(Σ (Π p)p)(Π p)p
+
+5. Rule: PiI
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p |- λ.0:(Π p)p
+
+6. Rule: Var
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p, p |- 0:p
+
+7. Rule: Var
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p, p |- 0:p
+
+8. Rule: Var
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p |- p:type
+
+9. Rule: Con
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p |- p:type
+
+10. Rule: PiI
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p |- λ.0:(Π p)p
+
+11. Rule: Var
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p, p |- 0:p
+
+12. Rule: Var
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p, p |- 0:p
+
+13. Rule: Var
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p |- p:type
+
+14. Rule: Con
+   Judgment: type, ¬(Σ (Π p)p)(Π p)p |- p:type
+
+15. Rule: PiF
+   Judgment: type |- ¬(Σ (Π p)p)(Π p)p:type
+
+16. Rule: SigmaF
+   Judgment: type |- (Σ (Π p)p)(Π p)p:type
+
+17. Rule: PiF
+   Judgment: type, (Π p)p |- (Π p)p:type
+
+18. Rule: Var
+   Judgment: type, (Π p)p |- p:type
+
+19. Rule: Con
+   Judgment: type, (Π p)p |- p:type
+
+20. Rule: Var
+   Judgment: type, (Π p)p, p |- p:type
+
+21. Rule: Con
+   Judgment: type, (Π p)p, p |- p:type
+
+22. Rule: PiF
+   Judgment: type |- (Π p)p:type
+
+23. Rule: Var
+   Judgment: type |- p:type
+
+24. Rule: Con
+   Judgment: type |- p:type
+
+25. Rule: Var
+   Judgment: type, p |- p:type
+
+26. Rule: Con
+   Judgment: type, p |- p:type
+
+27. Rule: BotF
+   Judgment: type, (Σ (Π p)p)(Π p)p |- ⊥:type
+

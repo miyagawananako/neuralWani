@@ -4,14 +4,13 @@
 
 import Control.Monad (forM)
 import System.Random.Shuffle (shuffleM)
-import System.Directory (listDirectory)
-import System.FilePath ((</>))
+import System.Directory (listDirectory, doesDirectoryExist)
+import System.FilePath ((</>), takeExtension)
 import qualified Data.Text.IO as T    --text
 import qualified Data.Text.Lazy as TL --text
 import Data.Time.LocalTime
 import qualified Data.Time as Time
 import qualified Data.ByteString as B --bytestring
-import qualified Data.Text.Encoding as E
 import Data.Store (encode)
 import Data.Ord (Down(..))
 import qualified Data.Map.Strict as Map
@@ -21,25 +20,30 @@ import           System.Environment (getArgs)
 import System.Mem (performGC)
 import System.Directory (createDirectoryIfMissing)
 import qualified DTS.QueryTypes as QT
+import qualified DTS.DTTdeBruijn as U
 import qualified DTS.Prover.Wani.BackwardRules as BR
 import Data.Maybe (mapMaybe)
 
 --hasktorch関連のインポート
 import Torch.Tensor       (Tensor(..),asValue, asTensor, toDevice)
 import Torch.Device       (Device(..),DeviceType(..))
-import Torch.Functional   (Dim(..),nllLoss',argmax,KeepDim(..))
+import Torch.Functional   (Dim(..),nllLoss')
 import Torch.NN           (sample, flattenParameters)
 import Torch.Optim        (mkAdam)
 import Torch.Train        (update,saveParams)
 import Torch.Control      (mapAccumM)
 
 --可視化と評価用のツール
-import ML.Exp.Chart   (drawLearningCurve, drawConfusionMatrix) --nlp-tools
-import ML.Exp.Classification (showClassificationReport) --nlp-tools
+import ML.Exp.Chart   (drawLearningCurve) --nlp-tools
 
 --プロジェクト固有のモジュール
 import SplitJudgment (Token(..), loadActionsFromBinary, getConstantSymbolsFromJudgment, getFrequentConstantSymbols, splitJudgment, DelimiterToken(..), dttruleToRuleLabel, buildWordMap)
 import Forward (HypParams(..), Params(..), forward)
+import Evaluate (evaluateModel, saveEvaluationReport, EvaluationResult(..))
+
+-- | データセットの種類を表すデータ型
+data DatasetType = JSeM | TPTP String  -- TPTPはサブフォルダ名を含む
+  deriving (Show, Read, Eq)
 
 -- | すべてのラベル（RuleLabel）のリスト
 allLabels :: [BR.RuleLabel]
@@ -188,6 +192,38 @@ trainModel device hyperParams trainData validData biDirectional iter numberOfBat
 
   return (trainedModel, lossesPair, frequentWords)
 
+-- | データセットの種類をパースする
+-- "jsem" -> JSeM
+-- "tptp:フォルダ名" -> TPTP フォルダ名
+parseDatasetType :: String -> DatasetType
+parseDatasetType "jsem" = JSeM
+parseDatasetType s
+  | "tptp:" `List.isPrefixOf` s = TPTP (drop 5 s)
+  | otherwise = error $ "Unknown dataset type: " ++ s ++ ". Use 'jsem' or 'tptp:folder_name'"
+
+-- | データセットを読み込む関数
+-- JSeM: data/JSeM/ 内のすべてのファイルを読み込む
+-- TPTP: extractedData/指定フォルダ/ 内のすべての.binファイルを読み込む
+loadDataset :: DatasetType -> IO [(U.Judgment, QT.DTTrule)]
+loadDataset JSeM = do
+  jsemFiles <- listDirectory "data/JSeM/"
+  datasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
+  return $ concat datasets
+loadDataset (TPTP folderName) = do
+  let tptpPath = "extractedData" </> folderName
+  exists <- doesDirectoryExist tptpPath
+  if not exists
+    then error $ "TPTP folder not found: " ++ tptpPath
+    else do
+      allFiles <- listDirectory tptpPath
+      let binFiles = filter (\f -> takeExtension f == ".bin") allFiles
+      if null binFiles
+        then error $ "No .bin files found in: " ++ tptpPath
+        else do
+          print $ "Loading " ++ show (length binFiles) ++ " .bin files from " ++ tptpPath
+          datasets <- mapM (\file -> loadActionsFromBinary (tptpPath </> file)) binFiles
+          return $ concat datasets
+
 -- | メイン関数
 -- コマンドライン引数からハイパーパラメータを取得し、
 -- モデルの学習と評価を行います
@@ -204,10 +240,12 @@ main = do
       steps = read (args !! 6) :: Int      -- ステップ数
       iter = read (args !! 7) :: Int       -- エポック数
       delimiterToken = read (args !! 8) :: DelimiterToken  -- 区切り用トークンの種類
+      datasetTypeStr = args !! 9           -- データセットの種類 ("jsem" or "tptp:folder_name")
+      datasetType = parseDatasetType datasetTypeStr
 
-  -- JSeMデータセットの読み込み
-  jsemFiles <- listDirectory "data/JSeM/"
-  jsemDatasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
+  -- データセットの読み込み
+  print $ "Loading dataset: " ++ show datasetType
+  originalDataset <- loadDataset datasetType
 
   -- 形成則を含めるかどうか
   let isIncludeF = False
@@ -215,8 +253,7 @@ main = do
 
   -- データセットの前処理
   -- 元データはQT.DTTruleのまま読み込み、フィルタリング後にBR.RuleLabelに変換
-  let originalDataset = concat jsemDatasets
-      backwardDataset = if isOnlyBackwardRules
+  let backwardDataset = if isOnlyBackwardRules
                 then filter (\(_, rule) -> elem rule backwardRules) originalDataset
                 else originalDataset
       filteredDataset = if isIncludeF
@@ -239,7 +276,7 @@ main = do
 
   -- データセットの分割
   splitedData <- splitByLabel (zip constructorData ruleList)
-  (trainData, validData, testData) <- smoothData splitedData (Just 450)
+  (trainData, validData, testData) <- smoothData splitedData (Nothing)
 
   -- 訓練データの規則出現回数をカウントして表示
   let countedTrainRules = countRule $ map snd trainData
@@ -282,20 +319,21 @@ main = do
   -- 現在時刻の取得（フォルダ名に使用）
   currentTime <- getZonedTime
   let timeString = Time.formatTime Time.defaultTimeLocale "%Y-%m-%d_%H-%M-%S" (zonedTimeToLocalTime currentTime)
+      datasetSuffix = case datasetType of
+                        JSeM -> "jsem"
+                        TPTP folder -> "tptp_" ++ folder
       baseFolderName = case (isIncludeF, isOnlyBackwardRules) of
                         (True, True)   -> "trainedDataBackward"
                         (True, False)  -> "trainedData"
                         (False, True)  -> "trainedDataBackwardWithoutF"
                         (False, False) -> "trainedDataWithoutF"
-      newFolderPath = baseFolderName ++ "/type" ++ show delimiterToken ++ "_bi" ++ show biDirectional ++ "_s" ++ show numberOfBatch ++ "_lr" ++ show (asValue learningRate :: Float) ++  "_i" ++ show embDim ++ "_h" ++ show hiddenSize ++ "_layer" ++ show numOfLayers ++ "/" ++ timeString
+      newFolderPath = baseFolderName ++ "/" ++ datasetSuffix ++ "_type" ++ show delimiterToken ++ "_bi" ++ show biDirectional ++ "_s" ++ show numberOfBatch ++ "_lr" ++ show (asValue learningRate :: Float) ++  "_i" ++ show embDim ++ "_h" ++ show hiddenSize ++ "_layer" ++ show numOfLayers ++ "/" ++ timeString
 
   createDirectoryIfMissing True newFolderPath
 
   let modelFileName = newFolderPath ++ "/seq-class" ++ ".model"
       frequentWordsFileName = newFolderPath ++ "/frequentWords" ++ ".bin"
       graphFileName =  newFolderPath ++ "/graph-seq-class"  ++ ".png"
-      confusionMatrixFileName =  newFolderPath ++ "/confusion-matrix" ++ ".png"
-      classificationReportFileName =  newFolderPath ++ "/classification-report" ++ ".txt"
       trainingTimeFileName = newFolderPath ++ "/training-time" ++ ".txt"
       learningCurveTitle = "type: " ++ show delimiterToken ++ " bi: " ++ show biDirectional ++ " s: " ++ show numberOfBatch ++ " lr: " ++ show (asValue learningRate :: Float) ++  " i: " ++ show embDim ++ " h: " ++ show hiddenSize ++ " layer: " ++ show numOfLayers
       (losses, validLosses) = unzip lossesPair
@@ -306,37 +344,24 @@ main = do
 
   drawLearningCurve graphFileName learningCurveTitle [("training", reverse losses), ("validation", reverse validLosses)]
 
-  -- テストデータに対する予測と評価
-  pairs <- forM testData $ \dataPoint -> do
-    let output' = forward device trainedModel (fst dataPoint) biDirectional
-        groundTruthIndex = toDevice device (asTensor [(fromEnum $ snd dataPoint) :: Int])
-        predictedClassIndex = argmax (Dim 1) KeepDim output'
-        isCorrect = groundTruthIndex == predictedClassIndex
-        label = toEnum (asValue predictedClassIndex :: Int) :: BR.RuleLabel
-    return (isCorrect, label)
-
-  let (isCorrects, predictedLabel) = unzip pairs
-
+  -- テストデータに対する予測と評価（Evaluateモジュールを使用）
+  evalResult <- evaluateModel device trainedModel testData biDirectional
+  
   -- 予測結果の表示
-  print $ zip predictedLabel (snd $ unzip $ testData)
-
-  -- 分類レポートの生成と保存
-  let classificationReport = showClassificationReport (length allLabels) (zip predictedLabel (snd $ unzip $ testData))
-  T.putStr classificationReport
-
-  B.writeFile classificationReportFileName (E.encodeUtf8 classificationReport)
-
+  print $ erPredictions evalResult
+  
+  -- 分類レポートの表示
+  T.putStr $ TL.toStrict $ erClassificationReport evalResult
+  
   -- 学習時間の保存
   let trainingTimeReport = TL.pack $ "Training Duration: " ++ show trainingDuration ++ "\n" ++
                                       "Start Time: " ++ show startTime ++ "\n" ++
                                       "End Time: " ++ show endTime ++ "\n"
   T.writeFile trainingTimeFileName (TL.toStrict trainingTimeReport)
-
-  -- 混同行列の描画
-  drawConfusionMatrix confusionMatrixFileName (length allLabels) (zip predictedLabel (snd $ unzip $ testData))
-
-  -- 精度の計算と表示
-  print $ "isCorrects " ++ show isCorrects
-
-  let accuracy = (fromIntegral (length (filter id isCorrects)) / fromIntegral (length isCorrects)) :: Double
-  print $ "Accuracy: " ++ show accuracy
+  
+  -- 評価結果をファイルに保存（分類レポートと混同行列）
+  saveEvaluationReport newFolderPath evalResult allLabels
+  
+  -- 精度の表示
+  print $ "isCorrects " ++ show (erCorrectFlags evalResult)
+  print $ "Accuracy: " ++ show (erAccuracy evalResult)

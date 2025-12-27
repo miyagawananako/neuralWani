@@ -1,0 +1,33 @@
+1. Rule: SigmaI
+   Judgment: type |- (λ.0,λ.0):(Σ (Π p)p)(Π p)p
+
+2. Rule: PiI
+   Judgment: type |- λ.0:(Π p)p
+
+3. Rule: Var
+   Judgment: type, p |- 0:p
+
+4. Rule: Var
+   Judgment: type, p |- 0:p
+
+5. Rule: Var
+   Judgment: type |- p:type
+
+6. Rule: Con
+   Judgment: type |- p:type
+
+7. Rule: PiI
+   Judgment: type |- λ.0:(Π p)p
+
+8. Rule: Var
+   Judgment: type, p |- 0:p
+
+9. Rule: Var
+   Judgment: type, p |- 0:p
+
+10. Rule: Var
+   Judgment: type |- p:type
+
+11. Rule: Con
+   Judgment: type |- p:type
+

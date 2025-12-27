@@ -1,0 +1,6 @@
+1. Rule: Var
+   Judgment: type |- top:T
+
+2. Rule: Con
+   Judgment: type |- top:T
+

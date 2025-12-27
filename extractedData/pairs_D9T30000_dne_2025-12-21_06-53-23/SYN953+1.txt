@@ -1,0 +1,87 @@
+1. Rule: PiI
+   Judgment: type |- λ.λ.λ.((2 0) (1 0)):(Π (Π entity)(Π (p 0))(q 1))(Π (Π entity)(p 0))(Π entity)(q 0)
+
+2. Rule: PiE
+   Judgment: type, (Π entity)(Π (p 0))(q 1), (Π entity)(p 0), entity |- ((2 0) (1 0)):(q 0)
+
+3. Rule: Var
+   Judgment: type, (Π entity)(Π (p 0))(q 1), (Π entity)(p 0), entity |- 2:(Π entity)(Π (p 0))(q 1)
+
+4. Rule: Var
+   Judgment: type, (Π entity)(Π (p 0))(q 1), (Π entity)(p 0), entity |- 0:entity
+
+5. Rule: Var
+   Judgment: type, (Π entity)(Π (p 0))(q 1), (Π entity)(p 0), entity |- 0:entity
+
+6. Rule: PiE
+   Judgment: type, (Π entity)(Π (p 0))(q 1), (Π entity)(p 0), entity |- (1 0):(p 0)
+
+7. Rule: Var
+   Judgment: type, (Π entity)(Π (p 0))(q 1), (Π entity)(p 0), entity |- 1:(Π entity)(p 0)
+
+8. Rule: Var
+   Judgment: type, (Π entity)(Π (p 0))(q 1), (Π entity)(p 0), entity |- 0:entity
+
+9. Rule: Var
+   Judgment: type, (Π entity)(Π (p 0))(q 1), (Π entity)(p 0), entity |- 0:entity
+
+10. Rule: PiF
+   Judgment: type |- (Π entity)(Π (p 0))(q 1):type
+
+11. Rule: Var
+   Judgment: type |- entity:type
+
+12. Rule: Con
+   Judgment: type |- entity:type
+
+13. Rule: PiE
+   Judgment: type, entity |- (p 0):type
+
+14. Rule: Con
+   Judgment: type, entity |- p:(Π entity)type
+
+15. Rule: Var
+   Judgment: type, entity |- 0:entity
+
+16. Rule: Var
+   Judgment: type, entity |- 0:entity
+
+17. Rule: PiE
+   Judgment: type, entity, (p 0) |- (q 1):type
+
+18. Rule: Con
+   Judgment: type, entity, (p 0) |- q:(Π entity)type
+
+19. Rule: Var
+   Judgment: type, entity, (p 0) |- 1:entity
+
+20. Rule: Var
+   Judgment: type, entity, (p 0) |- 1:entity
+
+21. Rule: PiF
+   Judgment: type, (Π entity)(Π (p 0))(q 1) |- (Π entity)(p 0):type
+
+22. Rule: Var
+   Judgment: type, (Π entity)(Π (p 0))(q 1) |- entity:type
+
+23. Rule: Con
+   Judgment: type, (Π entity)(Π (p 0))(q 1) |- entity:type
+
+24. Rule: PiE
+   Judgment: type, (Π entity)(Π (p 0))(q 1), entity |- (p 0):type
+
+25. Rule: Con
+   Judgment: type, (Π entity)(Π (p 0))(q 1), entity |- p:(Π entity)type
+
+26. Rule: Var
+   Judgment: type, (Π entity)(Π (p 0))(q 1), entity |- 0:entity
+
+27. Rule: Var
+   Judgment: type, (Π entity)(Π (p 0))(q 1), entity |- 0:entity
+
+28. Rule: Var
+   Judgment: type, (Π entity)(Π (p 0))(q 1), (Π entity)(p 0) |- entity:type
+
+29. Rule: Con
+   Judgment: type, (Π entity)(Π (p 0))(q 1), (Π entity)(p 0) |- entity:type
+
