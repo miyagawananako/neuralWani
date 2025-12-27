@@ -210,7 +210,7 @@ loadDataset JSeM = do
   datasets <- mapM (\file -> loadActionsFromBinary ("data/JSeM/" </> file)) jsemFiles
   return $ concat datasets
 loadDataset (TPTP folderName) = do
-  let tptpPath = "extractedData" </> folderName
+  let tptpPath = "tptp-judgment-rule-pairs" </> folderName
   exists <- doesDirectoryExist tptpPath
   if not exists
     then error $ "TPTP folder not found: " ++ tptpPath

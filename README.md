@@ -89,12 +89,12 @@ trainedDataBackwardWithoutF/type<delimiterToken>_bi<bi>_s<steps>_lr<lr>_i<emb>_h
 
 ---
 
-### 2. Extract Judgment-Rule Pairs (`extract-exe`)
+### 2. Extract Judgment-Rule Pairs (`extract-TPTP-exe`)
 
 Extracts judgment-rule pairs from TPTP proof trees for model evaluation.
 
 ```bash
-stack run extract-exe [maxTime] [maxDepth] [logicSystem]
+stack run extract-TPTP-exe [maxTime] [maxDepth] [logicSystem]
 ```
 
 #### Parameters
@@ -109,13 +109,13 @@ stack run extract-exe [maxTime] [maxDepth] [logicSystem]
 
 ```bash
 # Use default settings
-stack run extract-exe
+stack run extract-TPTP-exe
 
 # Set custom timeout
-stack run extract-exe 10000
+stack run extract-TPTP-exe 10000
 
 # Specify all parameters
-stack run extract-exe 10000 12 dne
+stack run extract-TPTP-exe 10000 12 dne
 ```
 
 #### Output
@@ -123,26 +123,26 @@ stack run extract-exe 10000 12 dne
 Extracted data is saved to:
 
 ```
-extractedData/pairs_D<maxDepth>T<maxTime>_<logicSystem>_<timestamp>/
+tptp-judgment-rule-pairs/pairs_D<maxDepth>T<maxTime>_<logicSystem>_<timestamp>/
 ├── <problem_name>.bin   # Binary format (Judgment, DTTrule) pairs
 └── <problem_name>.txt   # Human-readable format (for debugging)
 ```
 
 ---
 
-### 3. Evaluate Extracted Data (`eval-extract-exe`)
+### 3. Evaluate Extracted Data (`evaluate-neuralmodel-exe`)
 
 Evaluates a trained model on extracted judgment-rule pairs.
 
 ```bash
-stack run eval-extract-exe <sessionId|directory> [modelPath] [frequentWordsPath]
+stack run evaluate-neuralmodel-exe <sessionId|directory> [modelPath] [frequentWordsPath]
 ```
 
 #### Parameters
 
 | Parameter           | Type   | Description                                        | Default                    |
 | ------------------- | ------ | -------------------------------------------------- | -------------------------- |
-| `sessionId`         | String | Session ID from extract-exe or full directory path | Required                   |
+| `sessionId`         | String | Session ID from extract-TPTP-exe or full directory path | Required                   |
 | `modelPath`         | String | Path to trained model                              | Default model path         |
 | `frequentWordsPath` | String | Path to frequentWords.bin                          | Default frequentWords path |
 
@@ -152,19 +152,19 @@ The following formats are accepted:
 
 - Session ID only: `D9T6000_dne_2025-12-21_12-00-00`
 - With prefix: `pairs_D9T6000_dne_2025-12-21_12-00-00`
-- Full path: `extractedData/pairs_D9T6000_dne_2025-12-21_12-00-00`
+- Full path: `tptp-judgment-rule-pairs/pairs_D9T6000_dne_2025-12-21_12-00-00`
 
 #### Examples
 
 ```bash
 # List available extracted data directories
-stack run eval-extract-exe
+stack run evaluate-neuralmodel-exe
 
 # Evaluate with default model
-stack run eval-extract-exe D9T6000_dne_2025-12-21_12-00-00
+stack run evaluate-neuralmodel-exe D9T6000_dne_2025-12-21_12-00-00
 
 # Specify custom model
-stack run eval-extract-exe D9T6000_dne_2025-12-21_12-00-00 path/to/model.model path/to/frequentWords.bin
+stack run evaluate-neuralmodel-exe D9T6000_dne_2025-12-21_12-00-00 path/to/model.model path/to/frequentWords.bin
 ```
 
 #### Output
@@ -172,21 +172,21 @@ stack run eval-extract-exe D9T6000_dne_2025-12-21_12-00-00 path/to/model.model p
 Evaluation results are saved to:
 
 ```
-evaluationResults/eval_<sessionId>_<timestamp>/
+neuralmodel-evaluation/eval_<sessionId>_<timestamp>/
 ├── classification-report.txt
 └── confusion-matrix.png
 ```
 
 ---
 
-### 4. TPTP Evaluation (`evaluate-exe`)
+### 4. TPTP Evaluation (`evaluate-neuralwani-exe`)
 
 Evaluates the prover on TPTP files, comparing Normal and NeuralWani provers.
 
 > **Note:** This feature is currently under development. The NeuralWani prover is not yet fully integrated.
 
 ```bash
-stack run evaluate-exe [maxTime] [maxDepth] [logicSystem]
+stack run evaluate-neuralwani-exe [maxTime] [maxDepth] [logicSystem]
 ```
 
 #### Parameters
@@ -205,16 +205,16 @@ stack run evaluate-exe [maxTime] [maxDepth] [logicSystem]
 
 ```bash
 # Use default settings (maxTime=6000, maxDepth=9, logicSystem=dne)
-stack run evaluate-exe
+stack run evaluate-neuralwani-exe
 
 # Set custom timeout (10 seconds)
-stack run evaluate-exe 10000
+stack run evaluate-neuralwani-exe 10000
 
 # Set timeout and depth
-stack run evaluate-exe 10000 12
+stack run evaluate-neuralwani-exe 10000 12
 
 # Specify all parameters
-stack run evaluate-exe 10000 12 efq
+stack run evaluate-neuralwani-exe 10000 12 efq
 ```
 
 #### Output
@@ -257,11 +257,11 @@ A typical workflow for training and evaluating a model:
 stack run train-exe False 256 256 1 False 5e-4 32 10 Unused
 
 # 2. Extract judgment-rule pairs from TPTP problems
-stack run extract-exe 6000 9 dne
+stack run extract-TPTP-exe 6000 9 dne
 
 # 3. Evaluate the model on extracted data
-stack run eval-extract-exe D9T6000_dne_2025-12-21_12-00-00
+stack run evaluate-neuralmodel-exe D9T6000_dne_2025-12-21_12-00-00
 
 # 4. (Optional) Run full TPTP evaluation comparing Normal vs NeuralWani
-stack run evaluate-exe 6000 9 dne
+stack run evaluate-neuralwani-exe 6000 9 dne
 ```

@@ -104,7 +104,7 @@ main = do
   putStrLn ""
 
   -- 出力ディレクトリを作成
-  let outputDir = "extractedData" </> ("pairs_" ++ sessionId)
+  let outputDir = "tptp-judgment-rule-pairs" </> ("pairs_" ++ sessionId)
   createDirectoryIfMissing True outputDir
 
   -- data/TPTP/ 配下のサブディレクトリからファイルを取得

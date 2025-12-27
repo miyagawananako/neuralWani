@@ -97,9 +97,9 @@ defaultModelPath = "trainedDataBackwardWithoutF/typeEo_biFalse_s32_lr5.0e-4_i128
 defaultFrequentWordsPath :: FilePath
 defaultFrequentWordsPath = "trainedDataBackwardWithoutF/typeEo_biFalse_s32_lr5.0e-4_i128_h128_layer1/2025-12-16_13-41-38/frequentWords.bin"
 
--- | 抽出データの基本ディレクトリ（extract-exeと同じ）
+-- | 抽出データの基本ディレクトリ（extract-TPTP-exeと同じ）
 extractedDataBaseDir :: FilePath
-extractedDataBaseDir = "extractedData"
+extractedDataBaseDir = "tptp-judgment-rule-pairs"
 
 -- | 学習済みモデルのベースディレクトリ
 trainedDataBaseDir :: FilePath
@@ -113,11 +113,11 @@ extractedDataPrefix = "pairs_"
 usageMsg :: String
 usageMsg = "Usage: eval-extract-exe <sessionId|directory> [modelPath] [frequentWordsPath]\n" ++
            "  sessionId: Session ID from extract-exe (e.g., D9T6000_dne_2025-12-21_12-00-00)\n" ++
-           "             or full directory path (e.g., extractedData/pairs_D9T6000_dne_...)\n" ++
+           "             or full directory path (e.g., tptp-judgment-rule-pairs/pairs_D9T6000_dne_...)\n" ++
            "  modelPath: Path to trained model (default: " ++ defaultModelPath ++ ")\n" ++
            "  frequentWordsPath: Path to frequentWords.bin (default: " ++ defaultFrequentWordsPath ++ ")"
 
--- | extractedData/ 配下の利用可能なディレクトリを一覧
+-- | tptp-judgment-rule-pairs/ 配下の利用可能なディレクトリを一覧
 listExtractedDirs :: IO [FilePath]
 listExtractedDirs = do
   exists <- doesDirectoryExist extractedDataBaseDir
@@ -136,13 +136,13 @@ resolveExtractedDir input = do
   if existsAsIs
     then return input
     else do
-      -- extractedData/pairs_<input> として確認
+      -- tptp-judgment-rule-pairs/pairs_<input> として確認
       let withPrefix = extractedDataBaseDir </> (extractedDataPrefix ++ input)
       existsWithPrefix <- doesDirectoryExist withPrefix
       if existsWithPrefix
         then return withPrefix
         else do
-          -- extractedData/<input> として確認
+          -- tptp-judgment-rule-pairs/<input> として確認
           let inBaseDir = extractedDataBaseDir </> input
           existsInBase <- doesDirectoryExist inBaseDir
           if existsInBase
@@ -303,7 +303,7 @@ main = do
                         in if extractedDataPrefix `isPrefixOf` base
                            then drop (length extractedDataPrefix) base
                            else base
-          outputDir = "evaluationResults" </> ("eval_" ++ sessionInfo ++ "_" ++ timestamp)
+          outputDir = "neuralmodel-evaluation" </> ("eval_" ++ sessionInfo ++ "_" ++ timestamp)
       
       createDirectoryIfMissing True outputDir
       

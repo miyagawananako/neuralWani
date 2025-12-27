@@ -96,9 +96,9 @@ executables:
     dependencies:
       - neuralWani
 
-  evaluate-exe:
+  evaluate-neuralwani-exe:
     main: Main.hs
-    source-dirs: app/evaluate
+    source-dirs: app/evaluate-neuralwani
     ghc-options:
       - -threaded
       - -rtsopts
@@ -106,9 +106,9 @@ executables:
     dependencies:
       - neuralWani
 
-  extract-exe:
+  extract-TPTP-exe:
     main: Main.hs
-    source-dirs: app/extract
+    source-dirs: app/extract-TPTP
     ghc-options:
       - -threaded
       - -rtsopts
@@ -116,9 +116,9 @@ executables:
     dependencies:
       - neuralWani
 
-  eval-extract-exe:
+  evaluate-neuralmodel-exe:
     main: Main.hs
-    source-dirs: app/eval-extract
+    source-dirs: app/evaluate-neuralmodel
     ghc-options:
       - -threaded
       - -rtsopts
