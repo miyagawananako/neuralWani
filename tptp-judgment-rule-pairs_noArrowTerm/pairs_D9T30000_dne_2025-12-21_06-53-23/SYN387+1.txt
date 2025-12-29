@@ -1,0 +1,54 @@
+1. Rule: PiI
+   Judgment: type |- λ.(π2(0) π1(0)):¬(Σ ¬p)¬¬p
+
+2. Rule: PiE
+   Judgment: type, (Σ ¬p)¬¬p |- (π2(0) π1(0)):⊥
+
+3. Rule: SigmaE
+   Judgment: type, (Σ ¬p)¬¬p |- π2(0):¬¬p
+
+4. Rule: Var
+   Judgment: type, (Σ ¬p)¬¬p |- 0:(Σ ¬p)¬¬p
+
+5. Rule: Var
+   Judgment: type, (Σ ¬p)¬¬p |- π1(0):¬p
+
+6. Rule: SigmaE
+   Judgment: type, (Σ ¬p)¬¬p |- π1(0):¬p
+
+7. Rule: Var
+   Judgment: type, (Σ ¬p)¬¬p |- 0:(Σ ¬p)¬¬p
+
+8. Rule: SigmaF
+   Judgment: type |- (Σ ¬p)¬¬p:type
+
+9. Rule: PiF
+   Judgment: type, ¬p |- ¬¬p:type
+
+10. Rule: PiF
+   Judgment: type, ¬p |- ¬p:type
+
+11. Rule: Var
+   Judgment: type, ¬p |- p:type
+
+12. Rule: Con
+   Judgment: type, ¬p |- p:type
+
+13. Rule: BotF
+   Judgment: type, ¬p, p |- ⊥:type
+
+14. Rule: BotF
+   Judgment: type, ¬p, ¬p |- ⊥:type
+
+15. Rule: PiF
+   Judgment: type |- ¬p:type
+
+16. Rule: Var
+   Judgment: type |- p:type
+
+17. Rule: Con
+   Judgment: type |- p:type
+
+18. Rule: BotF
+   Judgment: type, p |- ⊥:type
+

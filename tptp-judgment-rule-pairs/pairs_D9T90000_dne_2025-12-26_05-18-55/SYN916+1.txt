@@ -1,0 +1,12 @@
+1. Rule: PiI
+   Judgment: type |- λ.0:¬⊥
+
+2. Rule: Var
+   Judgment: type, ⊥ |- 0:⊥
+
+3. Rule: Var
+   Judgment: type, ⊥ |- 0:⊥
+
+4. Rule: BotF
+   Judgment: type |- ⊥:type
+

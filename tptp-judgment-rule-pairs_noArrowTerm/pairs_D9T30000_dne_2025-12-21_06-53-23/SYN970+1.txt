@@ -1,0 +1,84 @@
+1. Rule: PiI
+   Judgment: type |- λ.λ.(1,(0,λ.λ.(3 2))):(Π entity)(Π entity)(Σ entity)(Σ entity)(Π (Π (p 1))(r 1))(Π (p 4))(r 4)
+
+2. Rule: SigmaI
+   Judgment: type, entity, entity |- (1,(0,λ.λ.(1 0))):(Σ entity)(Σ entity)(Π (Π (p 1))(r 1))(Π (p 4))(r 4)
+
+3. Rule: Var
+   Judgment: type, entity, entity |- 1:entity
+
+4. Rule: Var
+   Judgment: type, entity, entity |- 1:entity
+
+5. Rule: Var
+   Judgment: type, entity, entity |- 0:entity
+
+6. Rule: Var
+   Judgment: type, entity, entity |- 0:entity
+
+7. Rule: PiI
+   Judgment: type, entity, entity |- λ.λ.(1 0):(Π (Π (p 1))(r 1))(Π (p 2))(r 2)
+
+8. Rule: PiE
+   Judgment: type, entity, entity, (Π (p 1))(r 1), (p 2) |- (1 0):(r 2)
+
+9. Rule: Var
+   Judgment: type, entity, entity, (Π (p 1))(r 1), (p 2) |- 1:(Π (p 3))(r 3)
+
+10. Rule: Var
+   Judgment: type, entity, entity, (Π (p 1))(r 1), (p 2) |- 0:(p 3)
+
+11. Rule: Var
+   Judgment: type, entity, entity, (Π (p 1))(r 1), (p 2) |- 0:(p 3)
+
+12. Rule: PiF
+   Judgment: type, entity, entity |- (Π (p 1))(r 1):type
+
+13. Rule: PiE
+   Judgment: type, entity, entity |- (p 1):type
+
+14. Rule: Con
+   Judgment: type, entity, entity |- p:(Π entity)type
+
+15. Rule: Var
+   Judgment: type, entity, entity |- 1:entity
+
+16. Rule: Var
+   Judgment: type, entity, entity |- 1:entity
+
+17. Rule: PiE
+   Judgment: type, entity, entity, (p 1) |- (r 1):type
+
+18. Rule: Con
+   Judgment: type, entity, entity, (p 1) |- r:(Π entity)type
+
+19. Rule: Var
+   Judgment: type, entity, entity, (p 1) |- 1:entity
+
+20. Rule: Var
+   Judgment: type, entity, entity, (p 1) |- 1:entity
+
+21. Rule: PiE
+   Judgment: type, entity, entity, (Π (p 1))(r 1) |- (p 2):type
+
+22. Rule: Con
+   Judgment: type, entity, entity, (Π (p 1))(r 1) |- p:(Π entity)type
+
+23. Rule: Var
+   Judgment: type, entity, entity, (Π (p 1))(r 1) |- 2:entity
+
+24. Rule: Var
+   Judgment: type, entity, entity, (Π (p 1))(r 1) |- 2:entity
+
+25. Rule: Var
+   Judgment: type |- entity:type
+
+26. Rule: Con
+   Judgment: type |- entity:type
+
+27. Rule: Var
+   Judgment: type, entity |- entity:type
+
+28. Rule: Con
+   Judgment: type, entity |- entity:type
+
