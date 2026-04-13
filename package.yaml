@@ -58,6 +58,20 @@ ghc-options:
 
 library:
   source-dirs: src
+  exposed-modules:
+    - Evaluate
+    - Forward
+    - NeuralWaniBuilder
+    - SplitJudgment
+    - Training.Shared
+    - TPTP.Convert
+    - TPTP.FormulaLexer
+    - TPTP.FormulaParser
+    - TPTP.FormulaSyntax
+    - TPTP.Lexer
+    - TPTP.Parser
+    - TPTP.Syntax
+    - TPTPInfo
   build-tools:
     - alex # Lexer.x のビルドに必要
     - happy # Parser.y のビルドに必要
@@ -86,6 +100,26 @@ executables:
   evaluate-exe:
     main: Main.hs
     source-dirs: app/evaluate
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - neuralWani
+
+  transformer-demo-exe:
+    main: Main.hs
+    source-dirs: app/transformer-demo
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - neuralWani
+
+  train-transformer-exe:
+    main: Main.hs
+    source-dirs: app/train-transformer
     ghc-options:
       - -threaded
       - -rtsopts
