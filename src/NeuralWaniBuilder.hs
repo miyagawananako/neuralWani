@@ -25,9 +25,9 @@ import qualified SplitJudgment as S
 
 -- CPU用のパス
 modelPath :: FilePath
-modelPath = "trainedDataBackwardWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-15_12-14-54/seq-class.model"
+modelPath = "trainedDataBackwardWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-12_06-53-21/seq-class.model"
 frequentWordsPath :: FilePath
-frequentWordsPath = "trainedDataBackwardWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-15_12-14-54/frequentWords.bin"
+frequentWordsPath = "trainedDataBackwardWithoutF/typeUnused_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-12_06-53-21/frequentWords.bin"
 
 
 -- lightblue内に置く関数

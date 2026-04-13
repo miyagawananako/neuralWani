@@ -7,6 +7,7 @@ module Forward where
 import GHC.Generics                   --base
 import Data.Ord (Down(..))
 import qualified Data.List as List
+import Data.Maybe (mapMaybe)
 import qualified DTS.QueryTypes as QT
 import qualified DTS.DTTdeBruijn as U
 import qualified DTS.Prover.Wani.BackwardRules as BR
@@ -141,7 +142,14 @@ predictRule device params judgment bi_directional wordMap delimiterToken =
       -- インデックスと確率をペアにして、確率の降順でソート
       indexedProbs = zip [0..] probs
       sortedIndexedProbs = List.sortOn (Down . snd) indexedProbs
+      minRuleLabel = fromEnum (minBound :: BR.RuleLabel)
+      maxRuleLabel = fromEnum (maxBound :: BR.RuleLabel)
+      -- モデル出力次元がRuleLabelの列挙数より大きい場合に備えて範囲外を除外
+      toRuleLabel (idx, _) =
+        if idx >= minRuleLabel && idx <= maxRuleLabel
+          then Just (toEnum idx :: BR.RuleLabel)
+          else Nothing
       -- インデックスを規則に変換（BR.RuleLabelとして）
-      predictedRules = map (\(idx, _) -> toEnum idx :: BR.RuleLabel) sortedIndexedProbs
+      predictedRules = mapMaybe toRuleLabel sortedIndexedProbs
   in predictedRules
 
