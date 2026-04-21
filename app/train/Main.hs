@@ -60,6 +60,9 @@ backwardRules = [QT.PiF, QT.SigmaF, QT.IqF, QT.Var, QT.Con, QT.PiI, QT.SigmaI, Q
 formationRules :: [QT.DTTrule]
 formationRules = [QT.TypeF, QT.PiF, QT.SigmaF, QT.DisjF, QT.BotF, QT.TopF, QT.EnumF, QT.IqF, QT.NatF]
 
+membershipRules :: [QT.DTTrule]
+membershipRules = [QT.Var, QT.Con]
+
 -- | 規則の出現回数をカウントする関数
 -- 各規則の出現頻度を計算し、頻度の降順でソートして返します
 --
@@ -264,6 +267,7 @@ main = do
   -- 形成則を含めるかどうか
   let isIncludeF = False
       isOnlyBackwardRules = True
+      isIncludeMembership = True
 
   -- データセットの前処理
   -- 元データはQT.DTTruleのまま読み込み、フィルタリング後にBR.RuleLabelに変換
@@ -273,10 +277,13 @@ main = do
       filteredDataset = if isIncludeF
                 then backwardDataset
                 else filter (\(_, rule) -> rule `notElem` formationRules) backwardDataset
+      filteredDataset' = if isIncludeMembership
+                then filteredDataset
+                else filter (\(_, rule) -> rule `notElem` membershipRules) filteredDataset
       dataset = mapMaybe (\(judgment, dttRule) -> 
                   case dttruleToRuleLabel dttRule of
                     Just ruleLabel -> Just (judgment, ruleLabel)
-                    Nothing -> Nothing) filteredDataset
+                    Nothing -> Nothing) filteredDataset'
       wordList = concatMap (getConstantSymbolsFromJudgment . fst) dataset
       frequentWords = getFrequentConstantSymbols wordList
       -- 頻出語リストをMapに事前変換（高速化のため）
@@ -290,7 +297,7 @@ main = do
 
   -- データセットの分割
   splitedData <- splitByLabel (zip constructorData ruleList)
-  (trainData, validData, testData) <- smoothData splitedData (Nothing)
+  (trainData, validData, testData) <- smoothData splitedData (Just 450)
 
   -- 訓練データの規則出現回数をカウントして表示
   let countedTrainRules = countRule $ map snd trainData
