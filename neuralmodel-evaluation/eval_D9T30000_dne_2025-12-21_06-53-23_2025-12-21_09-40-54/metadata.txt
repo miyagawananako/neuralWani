@@ -1,0 +1,13 @@
+modelPath: /home/nanacom/neuralWani/trainedDataBackwardWithoutF/typeEo_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-15_22-41-59/seq-class.model
+frequentWordsPath: /home/nanacom/neuralWani/trainedDataBackwardWithoutF/typeEo_biFalse_s32_lr5.0e-4_i256_h256_layer1/2025-12-15_22-41-59/frequentWords.bin
+extractedPairs: 1397
+filteredPairs: 1276
+device: Device {deviceType = CUDA, deviceIndex = 0}
+bi_directional: False
+emb_dim: 256
+hidden_size: 256
+num_layers: 1
+has_bias: True
+proj_size: Nothing
+vocab_size: 75
+num_rules: 14

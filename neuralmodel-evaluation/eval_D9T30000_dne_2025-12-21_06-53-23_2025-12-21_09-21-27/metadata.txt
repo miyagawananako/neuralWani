@@ -1,0 +1,13 @@
+modelPath: trainedDataBackwardWithoutF/typeEo_biFalse_s32_lr5.0e-4_i128_h128_layer1/2025-12-16_13-41-38/seq-class.model
+frequentWordsPath: trainedDataBackwardWithoutF/typeEo_biFalse_s32_lr5.0e-4_i128_h128_layer1/2025-12-16_13-41-38/frequentWords.bin
+extractedPairs: 1397
+filteredPairs: 1276
+device: Device {deviceType = CUDA, deviceIndex = 0}
+bi_directional: False
+emb_dim: 128
+hidden_size: 128
+num_layers: 1
+has_bias: True
+proj_size: Nothing
+vocab_size: 75
+num_rules: 14

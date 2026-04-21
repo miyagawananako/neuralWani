@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Evaluate
       Forward
       NeuralWaniBuilder
       SplitJudgment
@@ -43,9 +44,9 @@ library
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
-  build-tools:
-      alex
-    , happy
+  build-tool-depends:
+      alex:alex
+    , happy:happy
   build-depends:
       array >=0.5.3.0
     , base >=4.7 && <5
@@ -110,14 +111,88 @@ executable builder-exe
     , time
   default-language: Haskell2010
 
-executable evaluate-exe
+executable evaluate-neuralmodel-exe
   main-is: Main.hs
   other-modules:
       Paths_neuralWani
   autogen-modules:
       Paths_neuralWani
   hs-source-dirs:
-      app/evaluate
+      app/evaluate-neuralmodel
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      array >=0.5.3.0
+    , base >=4.7 && <5
+    , bytestring
+    , cereal-text
+    , containers
+    , data-default
+    , deepseq
+    , directory
+    , dlist
+    , filepath
+    , hasktorch >=0.2
+    , hasktorch-tools
+    , jsem >=1.1
+    , lightblue >=0.3
+    , list-t
+    , mtl >=2.2.2
+    , neuralWani
+    , nlp-tools
+    , parserModules
+    , random
+    , random-shuffle
+    , split
+    , store
+    , text
+    , time
+  default-language: Haskell2010
+
+executable evaluate-neuralwani-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_neuralWani
+  autogen-modules:
+      Paths_neuralWani
+  hs-source-dirs:
+      app/evaluate-neuralwani
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      array >=0.5.3.0
+    , base >=4.7 && <5
+    , bytestring
+    , cereal-text
+    , containers
+    , data-default
+    , deepseq
+    , directory
+    , dlist
+    , filepath
+    , hasktorch >=0.2
+    , hasktorch-tools
+    , jsem >=1.1
+    , lightblue >=0.3
+    , list-t
+    , mtl >=2.2.2
+    , neuralWani
+    , nlp-tools
+    , parserModules
+    , random
+    , random-shuffle
+    , split
+    , store
+    , text
+    , time
+  default-language: Haskell2010
+
+executable extract-TPTP-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_neuralWani
+  autogen-modules:
+      Paths_neuralWani
+  hs-source-dirs:
+      app/extract-TPTP
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       array >=0.5.3.0

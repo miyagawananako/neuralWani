@@ -1,0 +1,126 @@
+1. Rule: PiI
+   Judgment: type |- λ.λ.λ.((π1(1) 2) ((0 2) π2(1))):(Π entity)(Π (Σ (Π entity)(Π (p 0))(q 1))(r 1))(Π (Π entity)(Π (r 0))(p 1))(q 2)
+
+2. Rule: PiE
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- ((π1(1) 2) ((0 2) π2(1))):(q 2)
+
+3. Rule: SigmaE
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- π1(1):(Π entity)(Π (p 0))(q 1)
+
+4. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- 1:(Σ (Π entity)(Π (p 0))(q 1))(r 3)
+
+5. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- 2:entity
+
+6. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- 2:entity
+
+7. Rule: PiE
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- ((0 2) π2(1)):(p 2)
+
+8. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- 0:(Π entity)(Π (r 0))(p 1)
+
+9. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- 2:entity
+
+10. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- 2:entity
+
+11. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- π2(1):(r 2)
+
+12. Rule: SigmaE
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- π2(1):(r 2)
+
+13. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), (Π entity)(Π (r 0))(p 1) |- 1:(Σ (Π entity)(Π (p 0))(q 1))(r 3)
+
+14. Rule: Var
+   Judgment: type |- entity:type
+
+15. Rule: Con
+   Judgment: type |- entity:type
+
+16. Rule: SigmaF
+   Judgment: type, entity |- (Σ (Π entity)(Π (p 0))(q 1))(r 1):type
+
+17. Rule: PiE
+   Judgment: type, entity, (Π entity)(Π (p 0))(q 1) |- (r 1):type
+
+18. Rule: Con
+   Judgment: type, entity, (Π entity)(Π (p 0))(q 1) |- r:(Π entity)type
+
+19. Rule: Var
+   Judgment: type, entity, (Π entity)(Π (p 0))(q 1) |- 1:entity
+
+20. Rule: Var
+   Judgment: type, entity, (Π entity)(Π (p 0))(q 1) |- 1:entity
+
+21. Rule: PiF
+   Judgment: type, entity |- (Π entity)(Π (p 0))(q 1):type
+
+22. Rule: Var
+   Judgment: type, entity |- entity:type
+
+23. Rule: Con
+   Judgment: type, entity |- entity:type
+
+24. Rule: PiE
+   Judgment: type, entity, entity |- (p 0):type
+
+25. Rule: Con
+   Judgment: type, entity, entity |- p:(Π entity)type
+
+26. Rule: Var
+   Judgment: type, entity, entity |- 0:entity
+
+27. Rule: Var
+   Judgment: type, entity, entity |- 0:entity
+
+28. Rule: PiE
+   Judgment: type, entity, entity, (p 0) |- (q 1):type
+
+29. Rule: Con
+   Judgment: type, entity, entity, (p 0) |- q:(Π entity)type
+
+30. Rule: Var
+   Judgment: type, entity, entity, (p 0) |- 1:entity
+
+31. Rule: Var
+   Judgment: type, entity, entity, (p 0) |- 1:entity
+
+32. Rule: PiF
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1) |- (Π entity)(Π (r 0))(p 1):type
+
+33. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1) |- entity:type
+
+34. Rule: Con
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1) |- entity:type
+
+35. Rule: PiE
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), entity |- (r 0):type
+
+36. Rule: Con
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), entity |- r:(Π entity)type
+
+37. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), entity |- 0:entity
+
+38. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), entity |- 0:entity
+
+39. Rule: PiE
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), entity, (r 0) |- (p 1):type
+
+40. Rule: Con
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), entity, (r 0) |- p:(Π entity)type
+
+41. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), entity, (r 0) |- 1:entity
+
+42. Rule: Var
+   Judgment: type, entity, (Σ (Π entity)(Π (p 0))(q 1))(r 1), entity, (r 0) |- 1:entity
+

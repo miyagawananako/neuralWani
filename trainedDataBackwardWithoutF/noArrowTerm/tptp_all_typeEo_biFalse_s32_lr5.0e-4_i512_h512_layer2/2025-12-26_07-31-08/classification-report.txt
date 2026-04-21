@@ -1,0 +1,20 @@
+Scores:
+|	| Prec 	| Rec 	| F1 	| Supp 	|
+| PiIntro	| 0.455	| 0.556	| 0.500	| 9	|
+| Membership	| 0.898	| 0.912	| 0.905	| 125	|
+| PiElim	| 0.652	| 0.682	| 0.667	| 22	|
+| SigmaIntro	| 1.000	| 0.000	| 0.000	| 4	|
+| Dne	| 1.000	| 0.000	| 0.000	| 1	|
+
+| micro	| 0.832	| 0.832	| 0.832	| 161	|
+| macro	| 0.801	| 0.430	| 0.414	| 161	|
+| w-avg	| 0.843	| 0.832	| 0.822	| 161	|
+
+Confusion matrix: 
+|	| PiIntro	| Membership	| PiElim	| SigmaIntro	| Dne	|
+| PiIntro	| 5	| 4	| 0	| 2	| 0	|
+| Membership	| 4	| 114	| 7	| 2	| 0	|
+| PiElim	| 0	| 7	| 15	| 0	| 1	|
+| SigmaIntro	| 0	| 0	| 0	| 0	| 0	|
+| Dne	| 0	| 0	| 0	| 0	| 0	|
+

@@ -1,0 +1,237 @@
+1. Rule: PiI
+   Judgment: type |- λ.(π1(π2(0)),λ.λ.((((eqElim π1(0)) 2) (((((((eqElim forwardEqIntro) entity) 2) 2) ((forwardEqIntro entity) 2)) 2) ((forwardEqIntro entity) 2))) ((((eqElim π1(2)) 2) 2) ((forwardEqIntro entity) 2)))):(Π (Σ (Π entity)(p 0))(Σ entity)(q 0))(Σ entity)(Π entity)¬(Σ ¬(p 0))¬(r 2)
+
+2. Rule: SigmaI
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0) |- (π1(π2(0)),λ.λ.((((eqElim π1(0)) 1) (((((((eqElim forwardEqIntro) entity) 1) 1) ((forwardEqIntro entity) 1)) 1) ((forwardEqIntro entity) 1))) ((((eqElim π1(2)) 1) 1) ((forwardEqIntro entity) 1)))):(Σ entity)(Π entity)¬(Σ ¬(p 0))¬(r 2)
+
+3. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0) |- π1(π2(0)):entity
+
+4. Rule: SigmaE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0) |- π1(π2(0)):entity
+
+5. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0) |- 0:(Σ (Π entity)(p 0))(Σ entity)(q 0)
+
+6. Rule: PiI
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0) |- λ.λ.((((eqElim π1(0)) 1) (((((((eqElim forwardEqIntro) entity) 1) 1) ((forwardEqIntro entity) 1)) 1) ((forwardEqIntro entity) 1))) ((((eqElim π1(2)) 1) 1) ((forwardEqIntro entity) 1))):(Π entity)¬(Σ ¬(p 0))¬(r π1(π2(2)))
+
+7. Rule: PiE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- ((((eqElim π1(0)) 1) (((((((eqElim forwardEqIntro) entity) 1) 1) ((forwardEqIntro entity) 1)) 1) ((forwardEqIntro entity) 1))) ((((eqElim π1(2)) 1) 1) ((forwardEqIntro entity) 1))):⊥
+
+8. Rule: IqE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- (eqElim π1(0)):(Π entity)(Π 0=[entity]2)¬(p 1)
+
+9. Rule: SigmaE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- π1(0):¬(p 1)
+
+10. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 0:(Σ ¬(p 1))¬(r π1(π2(3)))
+
+11. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+12. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+13. Rule: PiE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- (((((((eqElim forwardEqIntro) entity) 1) 1) ((forwardEqIntro entity) 1)) 1) ((forwardEqIntro entity) 1)):1=[entity]1
+
+14. Rule: IqE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- (eqElim forwardEqIntro):(Π type)(Π 0)(Π 1)(Π 0=[2]1)(Π 3)(Π 0=[4]3)3=[5]1
+
+15. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- forwardEqIntro:(Π type)(Π 0)0=[1]0
+
+16. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- entity:type
+
+17. Rule: Con
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- entity:type
+
+18. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+19. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+20. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+21. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+22. Rule: PiE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- ((forwardEqIntro entity) 1):1=[entity]1
+
+23. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- forwardEqIntro:(Π type)(Π 0)0=[1]0
+
+24. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- entity:type
+
+25. Rule: Con
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- entity:type
+
+26. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+27. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+28. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+29. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+30. Rule: PiE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- ((forwardEqIntro entity) 1):1=[entity]1
+
+31. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- forwardEqIntro:(Π type)(Π 0)0=[1]0
+
+32. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- entity:type
+
+33. Rule: Con
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- entity:type
+
+34. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+35. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+36. Rule: PiE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- ((((eqElim π1(2)) 1) 1) ((forwardEqIntro entity) 1)):(p 1)
+
+37. Rule: IqE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- (eqElim π1(2)):(Π entity)(Π entity)(Π 0=[entity]1)(p 1)
+
+38. Rule: SigmaE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- π1(2):(Π entity)(p 0)
+
+39. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 2:(Σ (Π entity)(p 0))(Σ entity)(q 0)
+
+40. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+41. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+42. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+43. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+44. Rule: PiE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- ((forwardEqIntro entity) 1):1=[entity]1
+
+45. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- forwardEqIntro:(Π type)(Π 0)0=[1]0
+
+46. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- entity:type
+
+47. Rule: Con
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- entity:type
+
+48. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+49. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (Σ ¬(p 0))¬(r π1(π2(2))) |- 1:entity
+
+50. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0) |- entity:type
+
+51. Rule: Con
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0) |- entity:type
+
+52. Rule: SigmaF
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity |- (Σ ¬(p 0))¬(r π1(π2(2))):type
+
+53. Rule: PiF
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, ¬(p 0) |- ¬(r π1(π2(2))):type
+
+54. Rule: PiE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, ¬(p 0) |- (r π1(π2(2))):type
+
+55. Rule: Con
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, ¬(p 0) |- r:(Π entity)type
+
+56. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, ¬(p 0) |- π1(π2(2)):entity
+
+57. Rule: SigmaE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, ¬(p 0) |- π1(π2(2)):entity
+
+58. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, ¬(p 0) |- 2:(Σ (Π entity)(p 0))(Σ entity)(q 0)
+
+59. Rule: BotF
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, ¬(p 0), (r π1(π2(2))) |- ⊥:type
+
+60. Rule: PiF
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity |- ¬(p 0):type
+
+61. Rule: PiE
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity |- (p 0):type
+
+62. Rule: Con
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity |- p:(Π entity)type
+
+63. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity |- 0:entity
+
+64. Rule: Var
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity |- 0:entity
+
+65. Rule: BotF
+   Judgment: type, (Σ (Π entity)(p 0))(Σ entity)(q 0), entity, (p 0) |- ⊥:type
+
+66. Rule: SigmaF
+   Judgment: type |- (Σ (Π entity)(p 0))(Σ entity)(q 0):type
+
+67. Rule: PiE
+   Judgment: type, (Π entity)(p 0), entity |- (q 0):type
+
+68. Rule: Con
+   Judgment: type, (Π entity)(p 0), entity |- q:(Π entity)type
+
+69. Rule: Var
+   Judgment: type, (Π entity)(p 0), entity |- 0:entity
+
+70. Rule: Var
+   Judgment: type, (Π entity)(p 0), entity |- 0:entity
+
+71. Rule: PiF
+   Judgment: type |- (Π entity)(p 0):type
+
+72. Rule: Var
+   Judgment: type |- entity:type
+
+73. Rule: Con
+   Judgment: type |- entity:type
+
+74. Rule: PiE
+   Judgment: type, entity |- (p 0):type
+
+75. Rule: Con
+   Judgment: type, entity |- p:(Π entity)type
+
+76. Rule: Var
+   Judgment: type, entity |- 0:entity
+
+77. Rule: Var
+   Judgment: type, entity |- 0:entity
+
+78. Rule: Var
+   Judgment: type, (Π entity)(p 0) |- entity:type
+
+79. Rule: Con
+   Judgment: type, (Π entity)(p 0) |- entity:type
+
